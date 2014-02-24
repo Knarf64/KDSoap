@@ -2881,6 +2881,7 @@ namespace TransformMediaService {
             void slotFinished( KDSoapPendingCallWatcher* watcher );
 
         private:
+            KDSoapMessage mFaultReply;
             TransformMediaService::TransformMediaBinding *mService;
             TFMS__TransformRequestType mIn;
             TFMS__TransformResponseType mResultAck;

@@ -13,6 +13,24 @@
 #include <QDebug>
 
 
+static void throwExceptionFault(const KDSoapValue &val)
+{
+    // helper function returning the <detail> tag of the fault element
+    const KDSoapValue &detail = KDSoapFaultException::faultDetails(val);
+    if (!detail.isNull() && !detail.isNil()) { // specific exception
+        const KDSoapValue &faultValue = detail.childValues().first();
+        QString ns = faultValue.namespaceUri();
+        QString name = faultValue.name();
+        if (name == TransformFaultException::faultElementName() && ns == TransformFaultException::faultElementNameSpace()) {
+            TransformFaultException tfe;
+            tfe.deserialize(val);
+            throw tfe;
+        }
+    }
+    KDSoapFaultException exception; // generic exception
+    exception.deserialize(val);
+    throw exception;
+}
 
 BMS__JobInfoSelectionType::BMS__JobInfoSelectionType( const Type &type )
 {
@@ -11297,6 +11315,9 @@ void TransformMediaService::TransformMediaBindingJobs::TransformJob::doStart()
 
 TFMS__TransformResponseType TransformMediaService::TransformMediaBindingJobs::TransformJob::ack() const
 {
+    if (mFaultReply.isFault()) {
+        throwExceptionFault(mFaultReply);
+    }
     return mResultAck;
 }
 
@@ -11306,6 +11327,8 @@ void TransformMediaService::TransformMediaBindingJobs::TransformJob::slotFinishe
     const KDSoapMessage reply = watcher->returnMessage();
     if (!reply.isFault()) {// converter_clientstub.cpp:374
         mResultAck.deserialize(reply);// converter_clientstub.cpp:531
+    } else {
+       mFaultReply = reply;
     }
     emitFinished(reply, watcher->returnHeaders());
 }
@@ -12961,25 +12984,6 @@ const KDSoapClientInterface *TransformMediaService::TransformMediaBinding::clien
 KDSoapClientInterface *TransformMediaService::TransformMediaBinding::clientInterface()
 {
     return const_cast<KDSoapClientInterface*>( const_cast< const TransformMediaBinding*>( this )->clientInterface() );
-}
-
-static void throwExceptionFault(const KDSoapValue &val)
-{
-    // helper function returning the <detail> tag of the fault element
-    const KDSoapValue &detail = KDSoapFaultException::faultDetails(val);
-    if (!detail.isNull() && !detail.isNil()) { // specific exception
-        const KDSoapValue &faultValue = detail.childValues().first();
-        QString ns = faultValue.namespaceUri();
-        QString name = faultValue.name();
-        if (name == TransformFaultException::faultElementName() && ns == TransformFaultException::faultElementNameSpace()) {
-            TransformFaultException tfe;
-            tfe.deserialize(val);
-            throw tfe;
-        }
-    }
-    KDSoapFaultException exception; // generic exception
-    exception.deserialize(val);
-    throw exception;
 }
 
 TFMS__TransformResponseType TransformMediaService::TransformMediaBinding::transform( const TFMS__TransformRequestType& in )

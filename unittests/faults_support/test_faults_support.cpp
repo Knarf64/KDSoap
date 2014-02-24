@@ -94,14 +94,15 @@ class FaultsSupportTest : public QObject
 {
     Q_OBJECT
 private:
-    KDSoapFaultException* expectedException;
+    QEventLoop m_eventLoop;
+
 signals:
     void soapExceptionRequest(bool specific);
+
 
 private Q_SLOTS:
     void initTestCase()
     {
-        expectedException = new KDSoapFaultException();
         KDSoapUnitTestHelpers::initHashSeed();
     }
 
@@ -166,16 +167,57 @@ private Q_SLOTS:
             QCOMPARE(ex.faultCode() , expectedException->faultCode());
             QCOMPARE(ex.faultString() , expectedException->faultString());
         }
-        // don't let the ptr leak
-        //delete expectedException;
+        //TODO : don't let the ptr leak
+    }
+
+    void asynchronousRaisingFaultExceptions_data() {
+       synchronousRaisingFaultExceptions_data();
     }
 
     void asynchronousRaisingFaultExceptions() {
-        // TODO
-    }
+        TestServerThread<TransformMediaBindingServer> serverThread;
+        TransformMediaBindingServer* server = serverThread.startThread();
+        TransformMediaService::TransformMediaBinding service;
+        service.setEndPoint(server->endPoint());
 
-    void cleanUpTestCase() {
-        delete expectedException;
+        QFETCH(KDSoapFaultException*, expectedException);
+        QFETCH(QString, expectedElementName);
+        QFETCH(TFMS__TransformFaultType, expectedFaultType);
+
+        TFMS__TransformJobType transformJob; // usefull to make the server throws the right exception
+        QLatin1String type = ( expectedElementName == TransformFaultException::faultElementName() ) ? QLatin1String("specific") : QLatin1String("generic");
+        transformJob.setOperationName(type);
+        TFMS__TransformRequestType request;
+        request.setTransformJob(transformJob);
+
+        QEventLoop loop;
+        TransformMediaService::TransformMediaBindingJobs::TransformJob transformAsyncJob(&service, this);
+        connect(&transformAsyncJob, SIGNAL(finished(KDSoapJob*)), &loop , SLOT(quit()));
+        transformAsyncJob.setIn(request);
+        transformAsyncJob.start();
+        loop.exec();
+
+        try {
+            transformAsyncJob.ack();
+        }
+        catch (const TransformFaultException &ex) {
+            //qDebug() << "Test Async Call caught a TransformFaultException";
+            QCOMPARE( ex.faultCode(), expectedException->faultCode() );
+            QCOMPARE( ex.faultString(), expectedException->faultString() );
+            // specific part
+            TFMS__TransformFaultType tft = ex.faultType();
+            QCOMPARE( int(tft.code().type()), int(expectedFaultType.code().type()) );
+            QCOMPARE( tft.description(), expectedFaultType.description() );
+            QCOMPARE( int(tft.extendedCode().type()), int(expectedFaultType.extendedCode()) );
+            return;
+        }
+        catch (const KDSoapFaultException &ex) {
+            //qDebug() << "Test async call caught a KDSoapFaultException";
+            QCOMPARE(ex.faultCode() , expectedException->faultCode());
+            QCOMPARE(ex.faultString() , expectedException->faultString());
+            return;
+        }
+        Q_ASSERT(false);
     }
 };
 
