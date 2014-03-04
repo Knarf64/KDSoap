@@ -23,6 +23,7 @@
 #include "KDSoapServerSocket_p.h"
 #include <QDebug>
 #include <QPointer>
+#include <QStringList>
 
 class KDSoapServerObjectInterface::Private
 {
@@ -34,11 +35,20 @@ public:
 
     KDSoapHeaders m_requestHeaders;
     KDSoapHeaders m_responseHeaders;
+    // SOAP 1.1
     QString m_faultCode;
     QString m_faultString;
     QString m_faultActor;
     QString m_detail;
+    // SOAP 1.2
+    QString m_code;
+    QStringList m_subcodes;
+    QString m_reason;
+    QString m_node;
+    QString m_role;
     KDSoapValue m_detailValue;
+
+    KDSoapServerObjectInterface::SoapVersion m_version;
     QString m_responseNamespace;
     QByteArray m_soapAction;
     // QPointer in case the client disconnects during a delayed response
@@ -102,7 +112,7 @@ void KDSoapServerObjectInterface::setFault(const QString &faultCode, const QStri
 }
 
 void KDSoapServerObjectInterface::setFault(const QString &faultCode, const QString &faultString, const QString &faultActor, const KDSoapValue &detail)
-{
+{   // soap 1.1
     Q_ASSERT(!faultCode.isEmpty());
     d->m_faultCode = faultCode;
     d->m_faultString = faultString;
@@ -110,25 +120,54 @@ void KDSoapServerObjectInterface::setFault(const QString &faultCode, const QStri
     d->m_detailValue = detail;
 }
 
+void KDSoapServerObjectInterface::setFault(const QString &code, const QString &reason, const QStringList &subcodes, const QString &node, const QString &role, const KDSoapValue &detail )
+{
+    // soap 1.2 constraints
+    Q_ASSERT(!code.isNull() && !reason.isEmpty());
+    d->m_code = code;
+    d->m_reason = reason;
+    d->m_subcodes = subcodes;
+    d->m_node = node;
+    d->m_role = role;
+    d->m_detailValue = detail;
+}
+
 void KDSoapServerObjectInterface::storeFaultAttributes(KDSoapMessage& message) const
 {
-    // SOAP 1.1  <faultcode>, <faultstring>, <faultfactor>, <detail>
-    message.addArgument(QString::fromLatin1("faultcode"), d->m_faultCode);
-    message.addArgument(QString::fromLatin1("faultstring"), d->m_faultString);
-    message.addArgument(QString::fromLatin1("faultactor"), d->m_faultActor);
+    if (d->m_version == SOAP1_1) { // SOAP 1.1  <faultcode>, <faultstring>, <faultfactor>, <detail>
+        message.addArgument(QString::fromLatin1("faultcode"), d->m_faultCode);
+        message.addArgument(QString::fromLatin1("faultstring"), d->m_faultString);
+        message.addArgument(QString::fromLatin1("faultactor"), d->m_faultActor);
+    }
+    else {
+        // SOAP 1.2  <Code> , <Reason> , <Node> , <Role> , <Detail>
+        KDSoapValueList codeNode = KDSoapValueList();
+        KDSoapValue codeValue = KDSoapValue(QString::fromLatin1("Value"), d->m_code);
+        codeNode << codeValue;
+
+        int subcodesNumber = d->m_subcodes.size();
+        if (subcodesNumber > 0) {
+            // make the subcodes hierarchy !
+        }
+        message.addArgument(QString::fromLatin1("Code"), codeNode);
+        message.addArgument(QString::fromLatin1("Reason"), d->m_reason);
+        message.addArgument(QString::fromLatin1("Node"), d->m_node);
+        message.addArgument(QString::fromLatin1("Role"), d->m_role);
+    }
+
+    // Specific or generic fault !
     if (d->m_detailValue.isNil() || d->m_detailValue.isNull())
         message.addArgument(QString::fromLatin1("detail"), d->m_detail);
-    else {
+    else { // comment this branch please :-)
         KDSoapValueList detailAsList;
         detailAsList.append( d->m_detailValue );
         message.addArgument(QString::fromLatin1("detail"), detailAsList);
     }
-    // TODO  : Answer SOAP 1.2  <Code> , <Reason> , <Node> , <Role> , <Detail>
 }
 
 bool KDSoapServerObjectInterface::hasFault() const
 {
-    return !d->m_faultCode.isEmpty();
+    return !d->m_faultCode.isEmpty() || !d->m_code.isNull();
 }
 
 KDSoapHeaders KDSoapServerObjectInterface::requestHeaders() const
@@ -175,6 +214,16 @@ void KDSoapServerObjectInterface::sendDelayedResponse(const KDSoapDelayedRespons
     KDSoapServerSocket* socket = responseHandle.serverSocket();
     if (socket)
         socket->sendDelayedReply(this, response);
+}
+
+void KDSoapServerObjectInterface::setSoapVersion(KDSoapServerObjectInterface::SoapVersion version)
+{
+    d->m_version = version;
+}
+
+KDSoapServerObjectInterface::SoapVersion KDSoapServerObjectInterface::soapVersion()
+{
+    return d->m_version;
 }
 
 void KDSoapServerObjectInterface::setResponseNamespace(const QString& ns)

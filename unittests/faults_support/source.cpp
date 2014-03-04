@@ -8564,7 +8564,7 @@ void TransformMediaBindingServerBase::transformResponse( const KDSoapDelayedResp
 
 void TransformMediaBindingServerBase::processRequest( const KDSoapMessage &request, KDSoapMessage &response, const QByteArray& soapAction )
 {
-    //qDebug() << "Within processRequest of TransformMediaBindingServerBase";
+//    qDebug() << "Within processRequest of TransformMediaBindingServerBase";
     setResponseNamespace(QLatin1String("http://transformmedia.fims.tv"));
     const QByteArray method = request.name().toLatin1();
     if (method == "transform" || soapAction == "http://transformmedia.fims.tv/transform") {
@@ -8578,10 +8578,21 @@ void TransformMediaBindingServerBase::processRequest( const KDSoapMessage &reque
             response = _valueTransformAck;
         }
         catch (const TransformFaultException &tfe) {
+            if (soapVersion() == SOAP1_1)
                 setFault(tfe.faultCode(), tfe.faultString(), tfe.faultActor(), tfe.serialize(TransformFaultException::faultElementName()));
+            else {
+                const QString specificFaultCodeString  = tfe.faultCodeEnumToString( tfe.code() ); // should be static maybe ?
+                setFault( specificFaultCodeString, tfe.reason(), tfe.subcodes() , tfe.node(), tfe.role(), tfe.serialize(TransformFaultException::faultElementName()));
+            }
         }
         catch (const KDSoapFaultException &ex) {
+            if (soapVersion() == SOAP1_1) {
                 setFault(ex.faultCode(), ex.faultString(), ex.faultActor(), KDSoapValue());
+            }
+            else {
+                const QString faultCodeString  = ex.faultCodeEnumToString(ex.code()); // should be static maybe ?
+                setFault(faultCodeString, ex.reason(), ex.subcodes() , ex.node(), ex.role(), KDSoapValue());
+            }
         }
     }
     else {
@@ -11007,6 +11018,13 @@ TransformFaultException::TransformFaultException(const QString &faultCode, const
     d_ptr->m_faultType = faultType;
 }
 
+TransformFaultException::TransformFaultException(const KDSoapFaultException::FaultCode &code, const QString &reason, const TFMS__TransformFaultType &faultType, const QStringList &subcodes, const QString &node, const QString &role):
+    KDSoapFaultException(code, reason, subcodes, node, role),
+    d_ptr(new PrivateDPtr())
+{
+    d_ptr->m_faultType = faultType;
+}
+
 TransformFaultException& TransformFaultException::operator=(const TransformFaultException &other)
 {
     if ( this == &other )
@@ -12997,6 +13015,7 @@ TFMS__TransformResponseType TransformMediaService::TransformMediaBinding::transf
     message = _valueTransformRequest;
     d_ptr->m_lastReply = clientInterface()->call(QLatin1String("transform"), message, action);
     if (d_ptr->m_lastReply.isFault()) {
+        //qDebug() << "client got fault =>" << d_ptr->m_lastReply ;
         throwExceptionFault( d_ptr->m_lastReply );
     }
     TFMS__TransformResponseType ret;

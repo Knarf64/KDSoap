@@ -65,6 +65,18 @@ class KDSoapServerSocket;
 class KDSOAPSERVER_EXPORT KDSoapServerObjectInterface
 {
 public:
+
+    /**
+     * Version of the SOAP protocol to use when sending responses.
+     * \see setSoapVersion()
+     */
+    enum SoapVersion {
+      /** Use format version 1.1 of the SOAP specification */
+      SOAP1_1 = 1,
+      /** Use format version 1.2 of the SOAP specification */
+      SOAP1_2 = 2
+    };
+
     /**
      * Constructor
      */
@@ -183,6 +195,13 @@ public:
      */
     void setFault(const QString& faultCode, const QString& faultString, const QString& faultActor, const KDSoapValue& detail);
 
+
+    /**
+     * Instructs KD SOAP to return a fault message instead of the return value of the slot.
+     * TODO : Specific of SOAP 1.2
+     */
+    void setFault(const QString &code, const QString &reason, const QStringList &subcodes, const QString &node, const QString &role, const KDSoapValue &detail);
+
     /**
      * Returns true if setFault was called in the current method invocation.
      */
@@ -211,6 +230,18 @@ public:
      * \since 1.2
      */
     void sendDelayedResponse(const KDSoapDelayedResponseHandle& responseHandle, const KDSoapMessage& response);
+
+    /**
+     * Sets the SOAP version to format future fault responses.
+     * \param version #SOAP1_1 or #SOAP1_2
+     * The default version is SOAP 1.1.
+     */
+    void setSoapVersion(SoapVersion version);
+
+    /**
+     * Returns the version of SOAP being used in this instance.
+     */
+    SoapVersion soapVersion();
 
 private:
     friend class KDSoapServerSocket;
