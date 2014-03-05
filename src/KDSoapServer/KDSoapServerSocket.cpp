@@ -238,6 +238,7 @@ void KDSoapServerSocket::slotReadyRead()
     if (contentType.startsWith("text/xml")) {
         // SOAP 1.1
         soapAction = httpHeaders.value("soapaction");
+        serverObjectInterface->setSoapVersion(KDSoapServerObjectInterface::SOAP1_1);
         // The SOAP standard allows quotation marks around the SoapAction, so we have to get rid of these.
         if (soapAction.startsWith('\"'))
             soapAction = soapAction.mid(1, soapAction.length() - 2);
@@ -245,6 +246,7 @@ void KDSoapServerSocket::slotReadyRead()
     } else if (contentType.startsWith("application/soap+xml")) {
         // SOAP 1.2
         // Example: application/soap+xml;charset=utf-8;action=ActionHex
+        serverObjectInterface->setSoapVersion(KDSoapServerObjectInterface::SOAP1_2);
         const QList<QByteArray> parts = contentType.split(';');
         Q_FOREACH(const QByteArray& part, parts) {
             if (part.startsWith("action=")) {

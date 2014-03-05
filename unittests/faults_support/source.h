@@ -2763,11 +2763,15 @@ class TransformFaultException : public KDSoapFaultException {
 public:
     TransformFaultException();
     TransformFaultException(const TransformFaultException& cpy);
+    // SOAP 1.1
     TransformFaultException(const QString &faultCode, const QString &faultString, const QString &faultActor, const TFMS__TransformFaultType &faultType);
+    // SOAP 1.2
+    TransformFaultException(FaultCode code, const QString &reason, const TFMS__TransformFaultType &faultType, const QStringList &subcodes = QStringList(), const QString &node = QString(), const QString &role = QString());
+
     TransformFaultException &operator=( const TransformFaultException & );
     virtual ~TransformFaultException();
 
-    KDSoapValue serialize( const QString& valueName ) const ;
+    KDSoapValue serialize( const QString& valueName ) const;
     void deserialize( const KDSoapValue& mainValue );
 
     TFMS__TransformFaultType faultType() const;
@@ -2777,7 +2781,6 @@ public:
 private:
     class PrivateDPtr;
     QSharedDataPointer<PrivateDPtr> d_ptr;
-//    TransformFaultExceptionPrivate* d_ptr;
 };
 Q_DECLARE_METATYPE(TransformFaultException)
 Q_DECLARE_METATYPE(TransformFaultException*)

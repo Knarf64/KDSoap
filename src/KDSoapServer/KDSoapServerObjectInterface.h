@@ -65,6 +65,18 @@ class KDSoapServerSocket;
 class KDSOAPSERVER_EXPORT KDSoapServerObjectInterface
 {
 public:
+
+    /**
+     * Version of the SOAP protocol to use when sending responses.
+     * \see setSoapVersion()
+     */
+    enum SoapVersion {
+      /** Use format version 1.1 of the SOAP specification */
+      SOAP1_1 = 1,
+      /** Use format version 1.2 of the SOAP specification */
+      SOAP1_2 = 2
+    };
+
     /**
      * Constructor
      */
@@ -171,7 +183,7 @@ public:
     void setFault(const QString& faultCode, const QString& faultString, const QString& faultActor = QString(), const QString& detail = QString());
 
     /**
-     * Instructs KD SOAP to return a fault message instead of the return value of the slot.
+     * Instructs KD SOAP to return a SOAP 1.1 fault message instead of the return value of the slot.
      *
      * \param faultCode A code for identifying the fault. Example: "Server.EntryNotFound", or
      *                  "Client.Authentication". Must not be empty.
@@ -182,6 +194,21 @@ public:
      * See http://www.w3.org/TR/2000/NOTE-SOAP-20000508/#_Toc478383507 for more details.
      */
     void setFault(const QString& faultCode, const QString& faultString, const QString& faultActor, const KDSoapValue& detail);
+
+
+    /**
+     * Instructs KD SOAP to return a SOAP 1.2 fault message instead of the return value of the slot.
+     *
+     * \param code A code for identifying the fault, given as a QString it matches with an already defined enum
+     * \param reason A human-readable explanation of the fault
+     * \param subcodes Values that provides more information about the fault.
+     * \param node Information regarding the actor (SOAP node) that caused the fault.
+     * \param role Role being performed by actor at the time of the fault.
+     * \param detail Holds application-specific error information related to the Body element, it is given as a KDSoapValue and hence can be parsed
+     *
+     * See http://www.w3.org/TR/soap12-part1/#soapfault for more details.
+     */
+    void setFault(const QString &code, const QString &reason, const QStringList &subcodes, const QString &node, const QString &role, const KDSoapValue &detail);
 
     /**
      * Returns true if setFault was called in the current method invocation.
@@ -212,6 +239,18 @@ public:
      */
     void sendDelayedResponse(const KDSoapDelayedResponseHandle& responseHandle, const KDSoapMessage& response);
 
+    /**
+     * Sets the SOAP version to format future fault responses.
+     * \param version #SOAP1_1 or #SOAP1_2
+     * The default version is SOAP 1.1.
+     */
+    void setSoapVersion(SoapVersion version);
+
+    /**
+     * Returns the version of SOAP being used in this instance.
+     */
+    SoapVersion soapVersion();
+
 private:
     friend class KDSoapServerSocket;
     void setServerSocket(KDSoapServerSocket* serverSocket); // only valid during processRequest()
@@ -219,6 +258,7 @@ private:
     KDSoapHeaders responseHeaders() const;
     QString responseNamespace() const;
     void storeFaultAttributes(KDSoapMessage& message) const;
+    KDSoapValueList storeFaultCodeAttribute() const;
     class Private;
     Private* const d;
 };

@@ -39,9 +39,30 @@ class TransformMediaBindingServerObject : public TransformMediaBindingServerBase
 public:
 
     virtual TFMS__TransformResponseType transform( const TFMS__TransformRequestType& in ) {
+
+        if (soapVersion() == SOAP1_1) { // Answer SOAP 1.1 <faultcode>, <faultstring>, <faultfactor>, <detail>
+            prepareExceptionSoap1(in.transformJob().operationName());
+        }
+        else { // Answer SOAP 1.2  <Code>, <Reason>, <Node>, <Role>, <Detail>
+            prepareExceptionSoap2(in.transformJob().operationName(), in.transformJob().statusDescription());
+        }
         Q_UNUSED(in);
-        // Answer SOAP 1.1 <faultcode>, <faultstring>, <faultfactor>, <detail>
-        if (in.transformJob().operationName() == QLatin1String("specific")) {
+        Q_ASSERT(false);
+        TFMS__TransformResponseType ret;
+        KDSoapMessage response;
+        KDSoapValue _valueTransformAck(ret.serialize(QString::fromLatin1("transformAck")));
+        _valueTransformAck.setNamespaceUri(QString::fromLatin1("http://transformmedia.fims.tv"));
+        _valueTransformAck.setQualified(true);
+        response = _valueTransformAck;
+        ret.deserialize(response);
+        return ret;
+    }
+
+private:
+    void prepareExceptionSoap1(const QString &exceptionKind)
+    {
+        if (exceptionKind == QLatin1String("specific"))
+        {
             TFMS__TransformFaultType tft;
             tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
             tft.setDescription(QString("Invalid target media format.")); // spec example
@@ -56,19 +77,33 @@ public:
             throw tfe;
         }
         else {
-            KDSoapFaultException kfe = KDSoapFaultException(QString("200"),QString("Soap Generic Fault"));
+            KDSoapFaultException kfe = KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
             throw kfe;
         }
-        // TODO  : Answer SOAP 1.2  <Code> , <Reason> , <Node> , <Role> , <Detail>
-        Q_ASSERT(false);
-        TFMS__TransformResponseType ret;
-        KDSoapMessage response;
-        KDSoapValue _valueTransformAck(ret.serialize(QString::fromLatin1("transformAck")));
-        _valueTransformAck.setNamespaceUri(QString::fromLatin1("http://transformmedia.fims.tv"));
-        _valueTransformAck.setQualified(true);
-        response = _valueTransformAck;
-        ret.deserialize(response);
-        return ret;
+    }
+
+    void prepareExceptionSoap2(QString exceptionKind, const QString &codeValue)
+    {
+        if (exceptionKind == QLatin1String("specific"))
+        {
+            TFMS__TransformFaultType tft;
+            tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
+            tft.setDescription(QString("Invalid target media format.")); // spec example
+            tft.setExtendedCode(TFMS__TransformErrorCodeType::SVC_S02_0001);
+            BMS__InnerFaultType inner;
+            inner.setCode(QString("innerCode"));
+            inner.setDescription("innerDescription");
+            inner.setDetail(QString("innerDetail"));
+            QList< BMS__InnerFaultType > innerList; innerList << (inner);
+            tft.setInnerFault(innerList);
+            TransformFaultException tfe( KDSoapFaultException::MustUnderstand, QString("Application specific Fault, see Detail"), tft, QStringList() << "subcode1" << "subcode2", QString("nodestring"), QString("role") );
+            throw tfe;
+        }
+        else {
+            const QString reason("Application Generic Fault, see codeValue");
+            KDSoapFaultException kfe(KDSoapFaultException::faultCodeStringToEnum(codeValue), reason, QStringList(), QString("nodestring"), QString("role"));
+            throw kfe;
+        }
     }
 };
 
@@ -106,14 +141,14 @@ private Q_SLOTS:
         KDSoapUnitTestHelpers::initHashSeed();
     }
 
-    void synchronousRaisingFaultExceptions_data() {
+    void syncFault_data() {
         QTest::addColumn<KDSoapFaultException*>("expectedException");
-        QTest::addColumn<QString>("expectedElementName");
+        QTest::addColumn<QString>("exceptionType");
         QTest::addColumn<TFMS__TransformFaultType>("expectedFaultType");
 
         TFMS__TransformFaultType tft;
         tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
-        tft.setDescription(QString("Invalid target media format.")); // spec example
+        tft.setDescription(QString("Invalid target media format."));
         tft.setExtendedCode(TFMS__TransformErrorCodeType::SVC_S02_0001);
         BMS__InnerFaultType inner;
         inner.setCode(QString("innerCode"));
@@ -126,11 +161,11 @@ private Q_SLOTS:
         KDSoapFaultException* kfe = new KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
 
         // add the Specific & the Generic Fault
-        QTest::newRow("specificFault") << tfe << TransformFaultException::faultElementName() << tft;
-        QTest::newRow("genericFault") << kfe << QString() << TFMS__TransformFaultType();
+        QTest::newRow("specificFault") << tfe << QString("specific") << tft;
+        QTest::newRow("genericFault") << kfe << QString("generic") << TFMS__TransformFaultType();
     }
 
-    void synchronousRaisingFaultExceptions()
+    void syncFault()
     {
         //qputenv( "KDSOAP_DEBUG", "1" );
         TestServerThread<TransformMediaBindingServer> serverThread;
@@ -140,12 +175,11 @@ private Q_SLOTS:
 
         // data driven testing
         QFETCH(KDSoapFaultException*, expectedException);
-        QFETCH(QString, expectedElementName);
+        QFETCH(QString, exceptionType);
         QFETCH(TFMS__TransformFaultType, expectedFaultType);
 
-        TFMS__TransformJobType transformJob; // usefull to make the server throws the right exception
-        QLatin1String type = ( expectedElementName == TransformFaultException::faultElementName() ) ? QLatin1String("specific") : QLatin1String("generic");
-        transformJob.setOperationName(type);
+        TFMS__TransformJobType transformJob;
+        transformJob.setOperationName(exceptionType); // used to make the server throws the right type of exception
         TFMS__TransformRequestType request;
         request.setTransformJob(transformJob);
         try {
@@ -164,35 +198,37 @@ private Q_SLOTS:
         }
         catch (const KDSoapFaultException &ex) {
             //qDebug() << "Test caught a KDSoapFaultException";
-            QCOMPARE(ex.faultCode() , expectedException->faultCode());
-            QCOMPARE(ex.faultString() , expectedException->faultString());
+            QCOMPARE(ex.faultCode(), expectedException->faultCode());
+            QCOMPARE(ex.faultString(), expectedException->faultString());
         }
         //TODO : don't let the ptr leak
     }
 
-    void asynchronousRaisingFaultExceptions_data() {
-       synchronousRaisingFaultExceptions_data();
+    void asyncFault_data() {
+       syncFault_data();
     }
 
-    void asynchronousRaisingFaultExceptions() {
+    void asyncFault() {
+//        qputenv( "KDSOAP_DEBUG", "1" );
+
         TestServerThread<TransformMediaBindingServer> serverThread;
         TransformMediaBindingServer* server = serverThread.startThread();
         TransformMediaService::TransformMediaBinding service;
         service.setEndPoint(server->endPoint());
 
         QFETCH(KDSoapFaultException*, expectedException);
-        QFETCH(QString, expectedElementName);
+        QFETCH(QString, exceptionType);
         QFETCH(TFMS__TransformFaultType, expectedFaultType);
 
-        TFMS__TransformJobType transformJob; // usefull to make the server throws the right exception
-        QLatin1String type = ( expectedElementName == TransformFaultException::faultElementName() ) ? QLatin1String("specific") : QLatin1String("generic");
-        transformJob.setOperationName(type);
+        TFMS__TransformJobType transformJob;
+        transformJob.setOperationName(exceptionType); // used to make the server throw the right type of exception
+
         TFMS__TransformRequestType request;
         request.setTransformJob(transformJob);
 
         QEventLoop loop;
         TransformMediaService::TransformMediaBindingJobs::TransformJob transformAsyncJob(&service, this);
-        connect(&transformAsyncJob, SIGNAL(finished(KDSoapJob*)), &loop , SLOT(quit()));
+        connect(&transformAsyncJob, SIGNAL(finished(KDSoapJob*)), &loop, SLOT(quit()));
         transformAsyncJob.setIn(request);
         transformAsyncJob.start();
         loop.exec();
@@ -213,12 +249,103 @@ private Q_SLOTS:
         }
         catch (const KDSoapFaultException &ex) {
             //qDebug() << "Test async call caught a KDSoapFaultException";
-            QCOMPARE(ex.faultCode() , expectedException->faultCode());
-            QCOMPARE(ex.faultString() , expectedException->faultString());
+            QCOMPARE(ex.faultCode(), expectedException->faultCode());
+            QCOMPARE(ex.faultString(), expectedException->faultString());
             return;
         }
         Q_ASSERT(false);
     }
+
+    void syncFaultSOAP2_data() {
+
+        QTest::addColumn<KDSoapFaultException*>("expectedException");
+        QTest::addColumn<QString>("exceptionType");
+        QTest::addColumn<TFMS__TransformFaultType>("expectedFaultType");
+        QTest::addColumn<QString>("faultCode");
+
+        // Loop adding generic fault exception with all possible <code> <value>
+        for (int rank = KDSoapFaultException::VersionMismatch ; rank <= KDSoapFaultException::Receiver; ++rank) {
+            //qDebug() << " rank in the loop" << rank;
+            KDSoapFaultException* kfe = new KDSoapFaultException( (KDSoapFaultException::FaultCode) rank,
+                                                                   QString("Application Generic Fault, see codeValue"), QStringList(),
+                                                                   QString("nodestring"), QString("role"));
+
+             // add the fault exception to the data
+             QTest::newRow("genericFault") << kfe
+                                           << QString("generic")
+                                           << TFMS__TransformFaultType()
+                                           << KDSoapFaultException::faultCodeEnumToString( (KDSoapFaultException::FaultCode) rank );
+        }
+        // adding a specific exception with <detail> tag filled up !
+        TFMS__TransformFaultType tft;
+        tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
+        tft.setDescription(QString("Invalid target media format.")); // spec example
+        tft.setExtendedCode(TFMS__TransformErrorCodeType::SVC_S02_0001);
+        BMS__InnerFaultType inner;
+        inner.setCode(QString("innerCode"));
+        inner.setDescription("innerDescription");
+        inner.setDetail(QString("innerDetail"));
+        QList< BMS__InnerFaultType > innerList; innerList << (inner);
+        tft.setInnerFault(innerList);
+
+        KDSoapFaultException* tfe = new TransformFaultException(KDSoapFaultException::MustUnderstand,
+                                                                QString("Application specific Fault, see Detail"), tft,
+                                                                QStringList() << "subcode1" << "subcode2",
+                                                                QString("nodestring"), QString("role") );
+
+        QTest::newRow("specificFault") << tfe << QString("specific")
+                                       << tft << KDSoapFaultException::faultCodeEnumToString( KDSoapFaultException::MustUnderstand );
+
+    }
+
+    void syncFaultSOAP2()
+    {
+//        qputenv( "KDSOAP_DEBUG", "1" );
+        TestServerThread<TransformMediaBindingServer> serverThread;
+        TransformMediaBindingServer* server = serverThread.startThread();
+        TransformMediaService::TransformMediaBinding service;
+        service.setEndPoint(server->endPoint());
+        service.setSoapVersion(KDSoapClientInterface::SOAP1_2);
+
+        // data driven testing
+        QFETCH(KDSoapFaultException*, expectedException);
+        QFETCH(QString, exceptionType);
+        QFETCH(TFMS__TransformFaultType, expectedFaultType);
+        QFETCH(QString, faultCode);
+
+        TFMS__TransformJobType transformJob;
+        transformJob.setOperationName(exceptionType); // used to make the server throw the right type of exception
+        transformJob.setStatusDescription( faultCode ); // used to get the right code value within the exception
+
+        TFMS__TransformRequestType request;
+        request.setTransformJob(transformJob);
+        try {
+            service.transform(request);
+            QVERIFY(false);
+        }
+        catch (const TransformFaultException &ex) {
+//            qDebug() << "Test fault SOAP 2 caught a TransformFaultException";
+            QCOMPARE( ex.code(), expectedException->code() );
+            QCOMPARE( ex.reason(), expectedException->reason());
+            QCOMPARE( ex.subcodes(), expectedException->subcodes());
+            QCOMPARE(ex.node(), expectedException->node());
+            QCOMPARE(ex.role(), expectedException->role());
+            // specific part
+            TFMS__TransformFaultType tft = ex.faultType();
+            QCOMPARE( int(tft.code().type()), int(expectedFaultType.code().type()) );
+            QCOMPARE( tft.description(), expectedFaultType.description() );
+            QCOMPARE( int(tft.extendedCode().type()), int(expectedFaultType.extendedCode()) );
+        }
+        catch (const KDSoapFaultException &ex) {
+//            qDebug() << "Test fault SOAP 2 caught a KDSoapFaultException";
+            QCOMPARE(ex.code(), expectedException->code());
+            QCOMPARE(ex.reason(), expectedException->reason());
+            QCOMPARE(ex.node(), expectedException->node());
+            QCOMPARE(ex.role(), expectedException->role());
+        }
+        //TODO : don't let the ptr leak
+    }
+
 };
 
 QTEST_MAIN(FaultsSupportTest)
