@@ -19,8 +19,7 @@
 ** clear to you.
 **
 **********************************************************************/
-//#include "wsdl_transformMedia-V1_0_7.h"
-#include "source.h"
+#include "wsdl_transformMedia-V1_0_7.h"
 #include "httpserver_p.h"
 #include <QtTest/QtTest>
 #include <QEventLoop>
@@ -61,7 +60,7 @@ public:
 private:
     void prepareExceptionSoap1(const QString &exceptionKind)
     {
-        if (exceptionKind == QLatin1String("specific"))
+        if (true/*exceptionKind == QLatin1String("specific")*/)
         {
             TFMS__TransformFaultType tft;
             tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
@@ -73,18 +72,19 @@ private:
             inner.setDetail(QString("innerDetail"));
             QList< BMS__InnerFaultType > innerList; innerList << (inner);
             tft.setInnerFault(innerList);
-            TransformFaultException tfe(QString("100"), QString("Application specific Fault, see Detail"), QString(), tft);
+            TFMS__TransformFaultTypeException tfe(QString("100"), QString("Application specific Fault, see Detail"), QString(), tft);
             throw tfe;
         }
-        else {
-            KDSoapFaultException kfe = KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
-            throw kfe;
-        }
+//        else {
+//            KDSoapFaultException kfe = KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
+//            throw kfe;
+//        }
     }
 
     void prepareExceptionSoap2(QString exceptionKind, const QString &codeValue)
     {
-        if (exceptionKind == QLatin1String("specific"))
+        Q_UNUSED(codeValue)
+        if (true/*exceptionKind == QLatin1String("specific")*/)
         {
             TFMS__TransformFaultType tft;
             tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
@@ -96,14 +96,14 @@ private:
             inner.setDetail(QString("innerDetail"));
             QList< BMS__InnerFaultType > innerList; innerList << (inner);
             tft.setInnerFault(innerList);
-            TransformFaultException tfe( KDSoapFaultException::MustUnderstand, QString("Application specific Fault, see Detail"), tft, QStringList() << "subcode1" << "subcode2", QString("nodestring"), QString("role") );
+            TFMS__TransformFaultTypeException tfe( KDSoapFaultException::MustUnderstand, QString("Application specific Fault, see Detail"), tft, QStringList() << "subcode1" << "subcode2", QString("nodestring"), QString("role") );
             throw tfe;
         }
-        else {
-            const QString reason("Application Generic Fault, see codeValue");
-            KDSoapFaultException kfe(KDSoapFaultException::faultCodeStringToEnum(codeValue), reason, QStringList(), QString("nodestring"), QString("role"));
-            throw kfe;
-        }
+//        else {
+//            const QString reason("Application Generic Fault, see codeValue");
+//            KDSoapFaultException kfe(KDSoapFaultException::faultCodeStringToEnum(codeValue), reason, QStringList(), QString("nodestring"), QString("role"));
+//            throw kfe;
+//        }
     }
 };
 
@@ -157,12 +157,12 @@ private Q_SLOTS:
         QList< BMS__InnerFaultType > innerList; innerList << (inner);
         tft.setInnerFault(innerList);
 
-        KDSoapFaultException* tfe = new TransformFaultException(QString("100"), QString("Application specific Fault, see Detail"), QString(), tft);
-        KDSoapFaultException* kfe = new KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
+        KDSoapFaultException* tfe = new TFMS__TransformFaultTypeException(QString("100"), QString("Application specific Fault, see Detail"), QString(), tft);
+        //KDSoapFaultException* kfe = new KDSoapFaultException(QString("200"), QString("Soap Generic Fault"));
 
         // add the Specific & the Generic Fault
         QTest::newRow("specificFault") << tfe << QString("specific") << tft;
-        QTest::newRow("genericFault") << kfe << QString("generic") << TFMS__TransformFaultType();
+        //QTest::newRow("genericFault") << kfe << QString("generic") << TFMS__TransformFaultType();
     }
 
     void syncFault()
@@ -186,8 +186,8 @@ private Q_SLOTS:
             service.transform(request);
             QVERIFY(false);
         }
-        catch (const TransformFaultException &ex) {
-            //qDebug() << "Test caught a TransformFaultException";
+        catch (const TFMS__TransformFaultTypeException &ex) {
+            //qDebug() << "Test caught a TFMS__TransformFaultTypeException";
             QCOMPARE( ex.faultCode(), expectedException->faultCode() );
             QCOMPARE( ex.faultString(), expectedException->faultString() );
             // specific part
@@ -234,10 +234,11 @@ private Q_SLOTS:
         loop.exec();
 
         try {
-            transformAsyncJob.ack();
+            TFMS__TransformResponseType  resp = transformAsyncJob.ack();
+            qDebug() << "No exception raised !";
         }
-        catch (const TransformFaultException &ex) {
-            //qDebug() << "Test Async Call caught a TransformFaultException";
+        catch (const TFMS__TransformFaultTypeException &ex) {
+            //qDebug() << "Test Async Call caught a TFMS__TransformFaultTypeException";
             QCOMPARE( ex.faultCode(), expectedException->faultCode() );
             QCOMPARE( ex.faultString(), expectedException->faultString() );
             // specific part
@@ -263,6 +264,8 @@ private Q_SLOTS:
         QTest::addColumn<TFMS__TransformFaultType>("expectedFaultType");
         QTest::addColumn<QString>("faultCode");
 
+        /* Let All this for when a raising exception flag will exist and will have to be tested
+
         // Loop adding generic fault exception with all possible <code> <value>
         for (int rank = KDSoapFaultException::VersionMismatch ; rank <= KDSoapFaultException::Receiver; ++rank) {
             //qDebug() << " rank in the loop" << rank;
@@ -275,7 +278,9 @@ private Q_SLOTS:
                                            << QString("generic")
                                            << TFMS__TransformFaultType()
                                            << KDSoapFaultException::faultCodeEnumToString( (KDSoapFaultException::FaultCode) rank );
+
         }
+        */
         // adding a specific exception with <detail> tag filled up !
         TFMS__TransformFaultType tft;
         tft.setCode(BMS__ErrorCodeType::DAT_S00_0001);
@@ -288,7 +293,7 @@ private Q_SLOTS:
         QList< BMS__InnerFaultType > innerList; innerList << (inner);
         tft.setInnerFault(innerList);
 
-        KDSoapFaultException* tfe = new TransformFaultException(KDSoapFaultException::MustUnderstand,
+        KDSoapFaultException* tfe = new TFMS__TransformFaultTypeException(KDSoapFaultException::MustUnderstand,
                                                                 QString("Application specific Fault, see Detail"), tft,
                                                                 QStringList() << "subcode1" << "subcode2",
                                                                 QString("nodestring"), QString("role") );
@@ -323,8 +328,8 @@ private Q_SLOTS:
             service.transform(request);
             QVERIFY(false);
         }
-        catch (const TransformFaultException &ex) {
-//            qDebug() << "Test fault SOAP 2 caught a TransformFaultException";
+        catch (const TFMS__TransformFaultTypeException &ex) {
+//            qDebug() << "Test fault SOAP 2 caught a TFMS__TransformFaultTypeException";
             QCOMPARE( ex.code(), expectedException->code() );
             QCOMPARE( ex.reason(), expectedException->reason());
             QCOMPARE( ex.subcodes(), expectedException->subcodes());

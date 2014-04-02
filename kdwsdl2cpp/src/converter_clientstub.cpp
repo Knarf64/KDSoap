@@ -6,6 +6,9 @@
 
 using namespace KWSDL;
 
+static const char s_jobFaultMemberName[] = "faultReply";
+static const char s_exceptionThrowerMethod[] = "throwExceptionFault";
+
 SoapBinding::Style Converter::soapStyle( const Binding& binding ) const
 {
     if ( binding.type() == Binding::SOAPBinding ) {
@@ -62,6 +65,39 @@ static SoapBinding::Headers getOutputHeaders( const Binding& binding, const QStr
     return SoapBinding::Headers();
 }
 
+void Converter::addFaultExceptionThrower(const QStringList& faultExceptionClasses)
+{
+    KODE::Function exceptionThrower(QLatin1String(s_exceptionThrowerMethod), QLatin1String("void"), 1, 1);
+    KODE::Code code;
+    if ( !mFaultExceptionClasses.isEmpty()) {
+        code += "// helper function returning the <detail> tag of the fault element";
+        code += "const KDSoapValue &detail = KDSoapFaultException::faultDetails(val);";
+        code += "if (!detail.isNull() && !detail.isNil()) { // specific exception";
+        code.indent();
+        code += "const KDSoapValue &faultValue = detail.childValues().first();";
+        code += "QString ns = faultValue.namespaceUri();";
+        code += "QString name = faultValue.name();";
+        Q_FOREACH (const QString& specificFaultExceptionClass, faultExceptionClasses) {
+            code += "if (name == " + specificFaultExceptionClass + "::faultElementName() && ns == " + specificFaultExceptionClass +"::faultElementNameSpace()) {";
+            code.indent();
+            code += specificFaultExceptionClass + " specificFault;";
+            code += "specificFault.deserialize(val);";
+            code += "throw specificFault;";
+            code.unindent(); code += "}"; // end of one specific fault throwing
+        }
+        code.unindent(); code += "}"; // end of specific faults block
+    }
+    code += "Q_UNUSED(val);";
+    code += "// NOTE :could be useful to let the client know when a generic exception has happen";
+    code += "//with a flag that one could setup, the following code would be uncommented ";
+    code += "//KDSoapFaultException exception; // generic exception";
+    code += "//exception.deserialize(val);";
+    code += "//throw exception;";
+
+    exceptionThrower.addArgument( QString("const KDSoapValue &val") );
+    exceptionThrower.setBody(code);
+    mFileFunctions.append(exceptionThrower);
+}
 
 bool Converter::convertClientService()
 {
@@ -254,12 +290,14 @@ bool Converter::convertClientService()
                     // async method
                     convertClientInputMessage( operation, binding, newClass );
                     convertClientOutputMessage( operation, binding, newClass );
-                    // TODO fault
+                    if (!operation.faults().isEmpty())
+                        convertFaultException(operation);
                     break;
                 case Operation::SolicitResponseOperation:
                     convertClientOutputMessage( operation, binding, newClass );
                     convertClientInputMessage( operation, binding, newClass );
-                    // TODO fault
+                    if (!operation.faults().isEmpty())
+                        convertFaultException(operation);
                     break;
                 case Operation::NotificationOperation:
                     convertClientOutputMessage( operation, binding, newClass );
@@ -292,6 +330,7 @@ bool Converter::convertClientService()
                     continue;
 
                 const QString operationName = operation.name();
+                const bool handleFault = (operation.faults().size() > 0);
                 KODE::Class jobClass( upperlize( operation.name() ) + QLatin1String("Job"), jobsNamespace );
                 jobClass.addInclude( QString(), fullyQualified( newClass ) );
                 jobClass.addHeaderInclude( QLatin1String("KDSoapClient/KDSoapJob.h") );
@@ -373,12 +412,12 @@ bool Converter::convertClientService()
                 slotCode += QLatin1String("const KDSoapMessage reply = watcher->returnMessage();");
                 slotCode += QLatin1String("if (!reply.isFault()) {") + COMMENT;
                 slotCode.indent();
+
                 Q_FOREACH( const Part& part, selectedParts( binding, outputMsg, operation, false /*input*/ ) ) {
                     const QString varName = mNameMapper.escape( QLatin1String("result") + upperlize( part.name() ) );
                     const KODE::MemberVariable member( varName, QString() );
                     slotCode.addBlock( deserializeRetVal(part, QLatin1String("reply"), mTypeMap.localType( part.type(), part.element() ), member.name() ) );
-
-                    addJobResultMember(jobClass, part, varName, inputGetters);
+                    addJobResultMember(jobClass, part, varName, inputGetters, handleFault);
                 }
                 Q_FOREACH( const SoapBinding::Header& header, getOutputHeaders( binding, operationName ) ) {
                     const QName messageName = header.message();
@@ -390,24 +429,39 @@ bool Converter::convertClientService()
                     const KODE::MemberVariable member( varName, QString() );
                     const QString getHeader = QString::fromLatin1("watcher->returnHeaders().header(QLatin1String(\"%1\"), QLatin1String(\"%2\"))").arg(part.element().localName(), part.element().nameSpace());
                     slotCode.addBlock( deserializeRetVal(part, getHeader, mTypeMap.localType(part.type(), part.element() ), member.name() ) );
-                    addJobResultMember(jobClass, part, varName, inputGetters);
+                    addJobResultMember(jobClass, part, varName, inputGetters, handleFault);
                 }
-
                 slotCode.unindent();
-                slotCode += QLatin1String("}");
+                slotCode += "}"; // end of the isFault() condition
+
+                if (!operation.faults().isEmpty()) {
+                    slotCode += QLatin1String("else {");
+                    slotCode.indent();
+                    const QString faultVarName = mNameMapper.escape( QLatin1String(s_jobFaultMemberName) );
+                    const KODE::MemberVariable member( faultVarName, QString("KDSoapMessage") );
+                    jobClass.addMemberVariable(member);
+                    slotCode += member.name() + " = " + "reply;" + COMMENT;
+                    slotCode.unindent();
+                    slotCode += QLatin1String("}");
+                }
                 slotCode += QLatin1String("emitFinished(reply, watcher->returnHeaders());");
                 slot.setBody( slotCode );
                 jobClass.addFunction( slot );
 
                 mClasses.addClass(jobClass);
+
             } // end of for each operation (job creation)
         } // end of for each port
     } // end of for each service
+
+    // Add the file static function that throws fault exceptions
+    addFaultExceptionThrower(mFaultExceptionClasses);
 
     // First sort all classes so that the order compiles
     QStringList excludedClasses;
     excludedClasses << QLatin1String("KDSoapServerObjectInterface");
     excludedClasses << QLatin1String("KDSoapJob");
+    excludedClasses << QLatin1String("KDSoapFaultException");
     mClasses.sortByDependencies(excludedClasses);
     // Then add the service, at the end
 
@@ -573,12 +627,13 @@ bool Converter::convertClientCall( const Operation &operation, const Binding &bi
 
       code += "if (d_ptr->m_lastReply.isFault())";
       code.indent();
-      code += QLatin1String("return ") + retType + QLatin1String("();"); // default-constructed value
+      //code += QLatin1String("return ") + retType + QLatin1String("();"); // default-constructed value
+      code += QLatin1String(s_exceptionThrowerMethod) + QLatin1String("( d_ptr->m_lastReply );");
       code.unindent();
 
       // WARNING: if you change the logic below, also adapt the result parsing for async calls
 
-      if ( retType != QLatin1String("void") ) {
+      if ( retType != QLatin1String("void") ) { // TODO : check this out with David
           if ( soapStyle(binding) == SoapBinding::DocumentStyle /*no wrapper*/ ) {
               code += retType + QLatin1String(" ret;"); // local var
               code.addBlock(deserializeRetVal(retPart, QLatin1String("d_ptr->m_lastReply"), retType, QLatin1String("ret")));
@@ -756,6 +811,161 @@ void Converter::convertClientOutputMessage( const Operation &operation,
   newClass.addFunction(finishedSlot);
 }
 
+// Generate the exceptions class for each fault
+void Converter::convertFaultException(const Operation& operation)
+{
+    // TODO : Orderize the catch in server side processRequestFunction !
+
+    Q_ASSERT(operation.faults().size());
+    const QString genericException = QString("KDSoapFaultException");
+    //KODE::ClassList sortedExceptionClasses;
+
+    Q_FOREACH(const Fault& operationfault,  operation.faults())
+    {
+        const Message message = mWSDL.findMessage(operationfault.message());
+        const QString faultName = operationfault.name();
+
+        Q_FOREACH( const Part& part , message.parts() )
+        {
+            if ( part.element().isEmpty() && part.type().isEmpty() ) {
+                qWarning("Fault exception failed to be created because empty message given");
+                return;
+            }
+            //qDebug() << "convert fault inspecting part element " << part.element().nameSpace() << "part type " << part.type().nameSpace();
+
+            // let's create an exception class linked to the below class
+            const QString varTypeNameSpace = (!part.element().nameSpace().isNull()) ? part.element().nameSpace() : part.type().nameSpace();
+            const QString varType = mTypeMap.localType( part.type(), part.element() );
+            const bool isBuiltin = mTypeMap.isBuiltinType( part.type(), part.element() );
+            const bool isComplexType = mTypeMap.isComplexType( part.type(), part.element() );
+            const QString exceptionClassName = varType+"Exception";
+            //qDebug() << "Fault class name to be convert into exception class " << varType;
+
+            if (!isComplexType)
+                return ; // has to carry attributes so cannot be something else
+
+            if (mFaultExceptionClasses.contains(exceptionClassName)) {
+                return; // already known class
+            }
+
+            KODE::Class exceptionClass;
+            exceptionClass.setName(exceptionClassName);
+            exceptionClass.setUseSharedData( true, QLatin1String("d_ptr") /*avoid clash with possible d() method */ );
+            exceptionClass.addHeaderInclude("KDSoapClient/KDSoapFaultException.h");
+            exceptionClass.addInclude(QString(), varType);
+
+            exceptionClass.addBaseClass( KODE::Class( QLatin1String("KDSoapFaultException") ) );
+            const KODE::MemberVariable faultType(QLatin1String("m_faultType"), varType);
+            exceptionClass.addMemberVariable( faultType );
+
+            // TODO : prepare a structure that keep them in order of derivation
+
+            // Ctor default & Ctor SOAP 1.1 and SOAP 1.2 version and Dtor
+            {
+                KODE::Function ctor( exceptionClassName );
+                KODE::Code ctorEmptyCode; KODE::Code dtorEmptyCode;
+                ctor.setBody(ctorEmptyCode);
+
+                KODE::Function ctorSOAP1( exceptionClassName );
+                ctorSOAP1.addArgument(QLatin1String("const QString &faultCode"));
+                ctorSOAP1.addArgument(QLatin1String("const QString &faultString"));
+                ctorSOAP1.addArgument(QLatin1String("const QString &faultActor"));
+                ctorSOAP1.addArgument("const " + varType + " &faultType");
+                QLatin1String genericSoap1Init("KDSoapFaultException(faultCode, faultString, faultActor)");
+                ctorSOAP1.addInitializer(genericSoap1Init);
+                KODE::Code ctorSoapCode;
+                ctorSoapCode += QLatin1String("d_ptr->m_faultType = faultType;");
+                ctorSOAP1.setBody(ctorSoapCode);
+
+                KODE::Function ctorSOAP2( exceptionClassName );
+                ctorSOAP2.addArgument(QLatin1String("KDSoapFaultException::FaultCode code"));
+                ctorSOAP2.addArgument(QLatin1String("const QString &reason"));
+                ctorSOAP2.addArgument("const "+ varType + " &faultType");
+                ctorSOAP2.addArgument(QLatin1String("const QStringList &subcodes"));
+                ctorSOAP2.addArgument(QLatin1String("const QString &node"));
+                ctorSOAP2.addArgument(QLatin1String("const QString &role"));
+                QLatin1String genericSOAP2Init("KDSoapFaultException(code, reason, subcodes, node, role)");
+                ctorSOAP2.addInitializer(genericSOAP2Init);
+                ctorSOAP2.setBody(ctorSoapCode);
+
+                KODE::Function dtor( QLatin1Char('~') + exceptionClassName );
+                dtor.setVirtualMode( KODE::Function::Virtual );
+                dtor.setBody(dtorEmptyCode);
+
+                exceptionClass.addFunction(ctor);
+                exceptionClass.addFunction(ctorSOAP1);
+                exceptionClass.addFunction(ctorSOAP2);
+                exceptionClass.addFunction(dtor);
+            }
+            // serialize & deserialize
+            {
+                // WARNING : be carefull of builtin type wich doesn't have serilize method !
+                KODE::Function serialize(QLatin1String("serialize"));
+                serialize.addArgument(QLatin1String("const QString& valueName"));
+                serialize.setReturnType(QLatin1String("KDSoapValue"));
+                serialize.setConst(true);
+                KODE::Code serializeBody;
+                if (!isBuiltin)
+                    serializeBody += "return d_ptr->m_faultType.serialize(valueName);";
+                serialize.setBody(serializeBody);
+
+                KODE::Function deserialize(QLatin1String("deserialize"));
+                deserialize.addArgument(QLatin1String("const KDSoapValue& mainValue"));
+                deserialize.setReturnType(QLatin1String("void"));
+                KODE::Code deserializeBody;
+                if (!isBuiltin) {
+                    deserializeBody += genericException + "::" + "deserialize(mainValue);";
+                    deserializeBody += "const KDSoapValue& val = " + genericException + "::faultDetails(mainValue);";
+                    deserializeBody += "if (!val.isNull()) {";
+                    deserializeBody.indent();
+
+                    deserializeBody += "const KDSoapValue& faultVal = val.childValues().first();";
+                    deserializeBody += "if (faultVal.name() == faultElementName()) {";
+                    deserializeBody.indent();
+                    deserializeBody += "d_ptr->m_faultType.deserialize(faultVal);";
+                    deserializeBody.unindent();
+                    deserializeBody += "}";
+                    deserializeBody.unindent();
+                    deserializeBody += "}";
+                }
+                deserialize.setBody(deserializeBody);
+                exceptionClass.addFunction(serialize);
+                exceptionClass.addFunction(deserialize);
+            }
+            // Fault specific functions
+            {
+                KODE::Function faultType(QLatin1String("faultType"));
+                faultType.setConst(true);
+                faultType.setReturnType(varType);
+                KODE::Code faultTypeBody;
+                faultTypeBody += "return d_ptr->m_faultType;";
+                faultType.setBody(faultTypeBody);
+
+                KODE::Function elementName(QLatin1String("faultElementName"));
+                elementName.setStatic(true);
+                elementName.setReturnType("QString");
+                KODE::Code nameBody;
+                nameBody += "return QString(\""+faultName+"\");";
+                elementName.setBody(nameBody);
+
+                KODE::Function elementNS(QLatin1String("faultElementNameSpace"));
+                elementNS.setStatic(true);
+                elementNS.setReturnType("QString");
+                KODE::Code nsBody;
+                nsBody += "return QString(\""+ varTypeNameSpace + "\");";
+                elementNS.setBody(nsBody);
+
+                exceptionClass.addFunction(faultType);
+                exceptionClass.addFunction(elementName);
+                exceptionClass.addFunction(elementNS);
+            }
+            mClasses.append(exceptionClass);
+            mFaultExceptionClasses.append(exceptionClassName); // used as cache
+        }
+    }
+    // sort them from the most derived to the base
+}
+
 void Converter::createHeader( const SoapBinding::Header& header, KODE::Class &newClass )
 {
     const QName messageName = header.message();
@@ -803,8 +1013,9 @@ void Converter::createHeader( const SoapBinding::Header& header, KODE::Class &ne
     }
 }
 
-void Converter::addJobResultMember(KODE::Class& jobClass, const Part& part, const QString& varName, const QStringList& inputGetters)
+void Converter::addJobResultMember(KODE::Class& jobClass, const Part& part, const QString& varName, const QStringList& inputGetters, bool handleFault)
 {
+    Q_UNUSED(handleFault); // could have a value according to a flag to raise exception for every kind of faults
     const QString varType = mTypeMap.localType( part.type(), part.element() );
     const KODE::MemberVariable member( varName, varType );
     jobClass.addMemberVariable( member );
@@ -816,8 +1027,15 @@ void Converter::addJobResultMember(KODE::Class& jobClass, const Part& part, cons
     KODE::Function getter( getterName, varType );
     getter.setConst( true );
     KODE::Code gc;
+
+    if (handleFault) {
+        gc += "if (m" + upperlize(QString(s_jobFaultMemberName)) + ".isFault())";
+        gc.indent();
+        gc += QString(s_exceptionThrowerMethod) + "(m" + upperlize(QString(s_jobFaultMemberName)) + ");";
+        gc.unindent();
+    }
     gc += QString::fromLatin1("return %1;").arg( member.name() );
     getter.setBody( gc );
     jobClass.addFunction( getter );
-}
 
+}

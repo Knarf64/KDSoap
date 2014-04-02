@@ -71,6 +71,7 @@ one or more content items) and the target format specification(s). The output of
                         <wsdl:documentation>The transform operation transforms media format essences referenced by a BMO to produce new media essences in the specified format and resolution.</wsdl:documentation>
                         <wsdl:input message="tfms:transformRequestMsg"></wsdl:input>
                         <wsdl:output message="tfms:transformAckMsg"></wsdl:output>
+                        <wsdl:fault name="fault" message="tfms:FaultMsg"></wsdl:fault>
                         <wsdl:fault name="transformFault" message="tfms:transformFaultMsg"></wsdl:fault>
                 </wsdl:operation>
         </wsdl:portType>

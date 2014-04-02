@@ -47,6 +47,7 @@ class Converter
     bool convert();
 
     KODE::Class::List classes() const;
+    KODE::Function::List fileFunctions() const;
 
     static QString shortenFilename( const QString &path );
 
@@ -66,13 +67,14 @@ class Converter
     bool convertClientCall( const Operation&, const Binding&, KODE::Class& );
     void convertClientInputMessage( const Operation&, const Binding&, KODE::Class& );
     void convertClientOutputMessage( const Operation&, const Binding&, KODE::Class& );
+    void convertFaultException(const Operation& operation);
     void clientAddOneArgument( KODE::Function& callFunc, const Part& part, KODE::Class &newClass );
     void clientAddArguments( KODE::Function& callFunc, const Message& message, KODE::Class &newClass, const Operation &operation, const Binding &binding );
     bool clientAddAction( KODE::Code& code, const Binding &binding, const QString& operationName );
     void clientGenerateMessage( KODE::Code& code, const Binding& binding, const Message& message, const Operation& operation, bool varsAreMembers=false );
     void addMessageArgument( KODE::Code& code, const SoapBinding::Style& bindingStyle, const Part& part, const QString& localVariableName, const QByteArray& messageName, bool varIsMember=false );
     void createHeader( const SoapBinding::Header& header, KODE::Class& newClass );
-    void addJobResultMember(KODE::Class& jobClass, const Part& part, const QString& varName, const QStringList &inputGetters);
+    void addJobResultMember(KODE::Class& jobClass, const Part& part, const QString& varName, const QStringList &inputGetters, bool handleFault = false);
     KODE::Code serializePart(const Part& part, const QString& localVariableName, const QByteArray& varName, bool append);
     KODE::Code demarshalVarHelper( const QName& type, const QName& elementType, const QString& variableName, const QString& qtTypeName, const QString& soapValueVarName, bool optional ) const;
     KODE::Code demarshalVar(const QName& type, const QName& elementType, const QString& variableName, const QString& typeName, const QString& soapValueVarName, bool optional) const;
@@ -83,11 +85,13 @@ class Converter
     KODE::Code deserializeRetVal(const KWSDL::Part& part, const QString& replyMsgName, const QString& qtRetType, const QString& varName) const;
     QName elementNameForPart(const Part& part, bool* qualified, bool *nillable) const;
     bool isQualifiedPart(const Part& part) const;
+    void addFaultExceptionThrower(const QStringList &faultExceptionClasses);
 
     // Server Stub
     void convertServerService();
     void generateServerMethod(KODE::Code& code, const Binding& binding, const Operation& operation,
                               KODE::Class &newClass, bool first);
+    void generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, bool soap1 = true, bool soap2 = true) const;
     void generateDelayedReponseMethod(const QString& methodName, const QString& retInputType,
                                       const Part &retPart, KODE::Class &newClass, const Binding& binding, const Message &outputMessage);
 
@@ -96,8 +100,10 @@ class Converter
     WSDL mWSDL;
 
     KODE::Class::List mClasses;
+    KODE::Function::List mFileFunctions;
     KODE::Class mQObject;
     KODE::Class mKDSoapServerObjectInterface;
+    QStringList mFaultExceptionClasses;
 
     NameMapper mNameMapper;
     TypeMap mTypeMap;

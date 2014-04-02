@@ -57,9 +57,11 @@ void Converter::convertServerService()
             Q_FOREACH( const Operation& operation, operations ) {
                 const Operation::OperationType opType = operation.operationType();
                 switch(opType) {
-                case Operation::OneWayOperation:
                 case Operation::RequestResponseOperation: // the standard case
                 case Operation::SolicitResponseOperation:
+                    if (!operation.faults().isEmpty())
+                        convertFaultException(operation);
+                case Operation::OneWayOperation:
                 case Operation::NotificationOperation:
                     generateServerMethod(body, binding, operation, serverClass, first);
                     break;
@@ -163,13 +165,13 @@ void Converter::generateServerMethod(KODE::Code& code, const Binding& binding, c
             retPart = outPart;
         }
         const QString methodCall = methodName + '(' + inputVars.join(", ") + ')';
-        if (retType == "void") {
-            code += methodCall + ";" + COMMENT;
-        } else {
-            code += retType + " ret = " + methodCall + ";" + COMMENT;
+        const QString fullMethodCall = (retType == "void") ? methodCall + ";" + COMMENT : retType + " ret = " + methodCall + ";" + COMMENT ;
+
+        if(!mFaultExceptionClasses.isEmpty()) {
+            code += "try {";
+            code.indent();
         }
-        code += "if (!hasFault()) {";
-        code.indent();
+        code += fullMethodCall;
 
         // TODO factorize with same code in next method
         if (soapStyle(binding) == SoapBinding::DocumentStyle) {
@@ -179,9 +181,13 @@ void Converter::generateServerMethod(KODE::Code& code, const Binding& binding, c
             code.addBlock( serializePart( retPart, "ret", "wrapper.childValues()", true ) );
             code += "response = wrapper;";
         }
+        if(!mFaultExceptionClasses.isEmpty()) {
+            code.unindent();
+            code += "}";
+        }
+        generateCatchFaultException(code, mFaultExceptionClasses);
+        mFaultExceptionClasses.clear();
 
-        code.unindent();
-        code += "}";
         Q_ASSERT(!retType.isEmpty());
         virtualMethod.setReturnType(retType);
 
@@ -191,6 +197,30 @@ void Converter::generateServerMethod(KODE::Code& code, const Binding& binding, c
     code += "}";
 
     newClass.addFunction(virtualMethod);
+}
+
+void Converter::generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, bool soap1, bool soap2) const
+{
+    // TODO : Make the catch in the right order : form the most derivate to the base classe
+    Q_ASSERT(soap1 || soap2);
+    Q_FOREACH(const QString& faultExceptionName, faultExceptionNames) {
+        code += "catch (const " + faultExceptionName + " &ex) {";
+        code.indent();
+        if (soap1) {
+            code += "if (soapVersion() == SOAP1_1)";
+            code.indent();
+            code += "setFault(ex.faultCode(), ex.faultString(), ex.faultActor(), ex.serialize(" + faultExceptionName + "::faultElementName()));";
+            code.unindent();
+        }
+        if (soap2) {
+            code += (soap1) ? "else" : "if (soapVersion() == SOAP1_2)";
+            code.indent();
+            code += "setFault( KDSoapFaultException::faultCodeEnumToString(ex.code()), ex.reason(), ex.subcodes(), ex.node(), ex.role(), ex.serialize(" + faultExceptionName + "::faultElementName()));";
+        }
+        code.unindent();
+        code.unindent();
+        code += "}";
+    }
 }
 
 void Converter::generateDelayedReponseMethod(const QString& methodName, const QString& retInputType, const Part &retPart, KODE::Class &newClass,

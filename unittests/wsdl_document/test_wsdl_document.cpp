@@ -36,6 +36,7 @@
 #ifndef QT_NO_OPENSSL
 #include <KDSoapSslHandler.h>
 #include <QSslSocket>
+#include <KDSoapFaultException.h>
 #endif
 
 using namespace KDSoapUnitTestHelpers;
@@ -304,7 +305,15 @@ private Q_SLOTS:
         MyWsdlDocument service;
         service.setEndPoint(server.endPoint());
         QSignalSpy sslErrorsSpy(service.clientInterface()->sslHandler(), SIGNAL(sslErrors(KDSoapSslHandler*, QList<QSslError>)));
-        QByteArray ret = service.addEmployee(addEmployeeParameters());
+        QByteArray ret;
+        try {
+            ret = service.addEmployee(addEmployeeParameters());
+        }
+        catch (const KDSoapFaultException &ex) {
+            //qDebug() << "testSslErrorSyncCall caught a KDSoapFaultException "<< ex.faultCode();
+            QCOMPARE(ex.faultCode(), QLatin1String("6"));
+            QCOMPARE(ex.faultString(), QLatin1String("SSL handshake failed"));
+        }
         QVERIFY(ret.isEmpty());
         QVERIFY2(service.lastError().contains(QLatin1String("SSL handshake failed")), qPrintable(service.lastError()));
         // Disable SSL so that termination can happen normally (do it asap, in case of failure below)
@@ -882,9 +891,18 @@ void WsdlDocumentTest::testServerAddEmployeeJob()
     m_eventLoop.exec();
 
     QCOMPARE(service.lastError(), QString());
-    QByteArray ret = job->resultParameters();
+    QByteArray ret;
+    try {
+        ret = job->resultParameters();
+    }
+    catch (const KDSoapFaultException& ex) {}
+
     QCOMPARE(QString::fromLatin1(ret.constData()), QString::fromLatin1("added David Faure"));
-    KDAB__SessionElement outputSession = job->outputHeader();
+    KDAB__SessionElement outputSession;
+    try {
+        outputSession = job->outputHeader();
+    }
+    catch (const KDSoapFaultException& ex) {}
     QCOMPARE(outputSession.sessionId(), QLatin1String("returned_id"));
 }
 
@@ -1141,7 +1159,15 @@ void WsdlDocumentTest::testServerDifferentPathFault()
     serv.setEndPoint(endPoint);
     TNS__GetNameInfo req;
     req.setName(QLatin1String("DOESNOTEXIST"));
-    const TNS__NameInfo names = serv.getNameInfo(req).nameinfo();
+    try {
+        const TNS__NameInfo names = serv.getNameInfo(req).nameinfo();
+    }
+    catch (const KDSoapFaultException& ex) {
+        //qDebug() << "TestServerDifferentPathFault call caught a KDSoapFaultException";
+        QCOMPARE(ex.faultCode(), QLatin1String("Server.Implementation"));
+        QCOMPARE(ex.faultString(), QLatin1String("Not implemented"));
+        QCOMPARE(ex.faultActor(), QLatin1String("NameServiceServerObject"));
+    }
     QCOMPARE(serv.lastError(), QLatin1String("Fault code Server.Implementation: Not implemented (NameServiceServerObject)"));
 }
 

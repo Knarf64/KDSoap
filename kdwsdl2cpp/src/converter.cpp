@@ -206,9 +206,15 @@ public:
                     case Operation::SolicitResponseOperation:
                         addMessage(operation.input().message());
                         addMessage(operation.output().message());
+                        Q_FOREACH(const Fault& fault, operation.faults() ) {
+                            addMessage(fault.message());
+                        }
                         break;
                     case Operation::NotificationOperation:
                         addMessage(operation.output().message());
+                        Q_FOREACH(const Fault& fault, operation.faults() ) {
+                            addMessage(fault.message());
+                        }
                         break;
                     };
                     if ( binding.type() == Binding::SOAPBinding ) {
@@ -341,6 +347,11 @@ void Converter::cleanupUnusedTypes()
 KODE::Class::List Converter::classes() const
 {
     return mClasses;
+}
+
+KODE::Function::List Converter::fileFunctions() const
+{
+    return mFileFunctions;
 }
 
 QString Converter::shortenFilename(const QString &path)

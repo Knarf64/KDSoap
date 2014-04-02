@@ -29,7 +29,7 @@ class Creator
   public:
     Creator();
 
-    void create( const KODE::Class::List &list );
+    void create( const KODE::Class::List &list, const KODE::Function::List fileFunction );
 };
 
 }

@@ -32,8 +32,9 @@ Creator::Creator()
 {
 }
 
-void Creator::create( const KODE::Class::List &classes )
+void Creator::create( const KODE::Class::List &classes, const KODE::Function::List fileFunctions)
 {
+  Q_UNUSED( fileFunctions);
   KODE::Printer printer;
   printer.setOutputDirectory( Settings::self()->outputDirectory() );
 
@@ -55,6 +56,11 @@ void Creator::create( const KODE::Class::List &classes )
       file.setHeaderFilename(Settings::self()->headerFile());
   } else {
       file.setHeaderFilename( Settings::self()->outputFileName() );
+  }
+
+  file.addInclude( QString("KDSoapFaultException.h") );
+  foreach ( const KODE::Function &fileFunction, fileFunctions ) {
+        file.addFileFunction(fileFunction);
   }
 
   KODE::Class::List::ConstIterator it;

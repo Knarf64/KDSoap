@@ -113,7 +113,7 @@ void Compiler::parse( const QDomElement &element )
           QCoreApplication::exit( 4 );
       } else {
           KWSDL::Creator creator;
-          creator.create( converter.classes() );
+          creator.create( converter.classes(), converter.fileFunctions() );
           QCoreApplication::exit( 0 );
       }
   } else {

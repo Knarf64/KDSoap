@@ -21,6 +21,7 @@
 
 #include <common/messagehandler.h>
 #include <common/parsercontext.h>
+#include <common/nsmanager.h>
 
 #include "fault.h"
 
@@ -68,6 +69,13 @@ void Fault::loadXML( ParserContext *context, const QDomElement &element )
   mMessage = element.attribute( QLatin1String("message") );
   if ( mMessage.isEmpty() )
     context->messageHandler()->warning( QLatin1String("Fault: 'message' required") );
+  else {
+    if ( mMessage.prefix().isEmpty() ) {
+      mMessage.setNameSpace( nameSpace() );
+    } else {
+      mMessage.setNameSpace( context->namespaceManager()->uri( mMessage.prefix() ) );
+    }
+  }
 }
 
 void Fault::saveXML( ParserContext *context, QDomDocument &document, QDomElement &parent ) const
