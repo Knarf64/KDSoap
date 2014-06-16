@@ -175,13 +175,11 @@ void KDSoapServerObjectInterface::storeFaultAttributes(KDSoapMessage& message) c
         message.addArgument(QString::fromLatin1("Role"), d->m_role);
     }
     // <detail> tag filled according to a specific or generic fault
-    if (d->m_detailValue.isNil() || d->m_detailValue.isNull()) {
-        message.addArgument(QString::fromLatin1("detail"), d->m_detail);
-    } else {
-        KDSoapValueList detailAsList;
-        detailAsList.append( d->m_detailValue );
-        message.addArgument(QString::fromLatin1("detail"), detailAsList);
-    }
+    QString detail = (d->m_version == SOAP1_1) ? QString::fromLatin1("detail") : QString::fromLatin1("Detail");
+    if (d->m_detailValue.isNull())
+        message.addArgument(detail, d->m_detail);
+    else
+        message.addArgument(detail, d->m_detailValue.childValues());
 }
 
 bool KDSoapServerObjectInterface::hasFault() const

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <wsdl:definitions name="TransformMedia" targetNamespace="http://transformmedia.fims.tv" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
-        xmlns="http://www.w3.org/2001/XMLSchema" xmlns:bms="http://base.fims.tv" xmlns:tfms="http://transformmedia.fims.tv" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/">
+        xmlns="http://www.w3.org/2001/XMLSchema"
+        xmlns:bms="http://base.fims.tv"
+        xmlns:tfms="http://transformmedia.fims.tv"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:soap12= "http://schemas.xmlsoap.org/wsdl/soap12/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/">
 
         <wsdl:types>
            <schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -17,14 +22,27 @@
                 <wsdl:part name="in" element="tfms:transformRequest">
                         <wsdl:documentation>This message represents a request to the transform media service for transforming content from a source format to a target format.</wsdl:documentation></wsdl:part>
         </wsdl:message>
+
         <wsdl:message name="transformAckMsg">
                 <wsdl:part name="ack" element="tfms:transformAck">
                         <wsdl:documentation>This message represents the acknowledgment sent back from the transform media service when the transform job is submitted.</wsdl:documentation></wsdl:part>
         </wsdl:message>
+
         <wsdl:message name="transformFaultMsg">
                 <wsdl:part name="fault" element="tfms:transformFault">
                         <wsdl:documentation>This message represents a fault which may be sent by the transform media service when a job is submitted.</wsdl:documentation></wsdl:part>
         </wsdl:message>
+
+        <!--custom fault to test built in fault generation-->
+        <wsdl:message name="transformFaultBuiltInMsg">
+                <wsdl:part element="tfms:simpleTypeElement" name="simpleTypeElementName"></wsdl:part>
+        </wsdl:message>
+
+        <wsdl:message name="transformFaultMixedTypeMsg">
+                <wsdl:part element="tfms:simpleTypeElement" name="simpleTypeElementName"></wsdl:part>
+                <wsdl:part element="tfms:transformFault" name="faultTest"></wsdl:part>
+        </wsdl:message>
+
         <wsdl:message name="transformNotificationMsg">
                 <wsdl:part name="in" element="tfms:transformNotification">
                         <wsdl:documentation>This message represents a job completion notification that the transform media service sends to a specified endpoint when the transform job ends.</wsdl:documentation></wsdl:part>
@@ -73,6 +91,21 @@ one or more content items) and the target format specification(s). The output of
                         <wsdl:output message="tfms:transformAckMsg"></wsdl:output>
                         <wsdl:fault name="fault" message="tfms:FaultMsg"></wsdl:fault>
                         <wsdl:fault name="transformFault" message="tfms:transformFaultMsg"></wsdl:fault>
+                </wsdl:operation>
+        </wsdl:portType>
+
+        <wsdl:portType name="TransformMedia12">
+        <wsdl:documentation>This port type allows to send job requests to the transform media service. The transform media service has the capability to transform
+one or more content items into one or more different formats. The operation input parameters are: a BMO (which has reference(s) to
+one or more content items) and the target format specification(s). The output of the transform media service is a BMO with one or more content items.</wsdl:documentation>
+                <wsdl:operation name="transformSoap12">
+                        <wsdl:documentation>The transform operation transforms media format essences referenced by a BMO to produce new media essences in the specified format and resolution.</wsdl:documentation>
+                        <wsdl:input message="tfms:transformRequestMsg"></wsdl:input>
+                        <wsdl:output message="tfms:transformAckMsg"></wsdl:output>
+                        <wsdl:fault name="fault" message="tfms:FaultMsg"></wsdl:fault>
+                        <wsdl:fault name="transformFault" message="tfms:transformFaultMsg"></wsdl:fault>
+                        <wsdl:fault name="transformFaultBuiltIn" message="tfms:transformFaultBuiltInMsg"></wsdl:fault>
+                        <wsdl:fault name="transformFaultMixedType" message="tfms:transformFaultMixedTypeMsg"></wsdl:fault>
                 </wsdl:operation>
         </wsdl:portType>
 
@@ -125,8 +158,48 @@ specified in the notifyAt element of the job request.</wsdl:documentation>
                         <wsdl:fault name="transformFault">
                                 <soap:fault use="literal" name="transformFault" />
                         </wsdl:fault>
+                        <wsdl:fault name="fault">
+                                <soap:fault use="literal" name="fault" />
+                        </wsdl:fault>
+                        <wsdl:fault name="transformFaultBuiltIn">
+                                <soap:fault use="literal" name="transformFaultBuiltIn" />
+                        </wsdl:fault>
+                        <wsdl:fault name="transformFaultMixedType">
+                                <soap:fault use="literal" name="transformFaultMixedType" />
+                        </wsdl:fault>
                 </wsdl:operation>
          </wsdl:binding>
+
+         <wsdl:binding name="TransformMediaBinding12" type="tfms:TransformMedia12">
+                <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" />
+                <wsdl:operation name="transformSoap12">
+                        <soap12:operation soapAction="http://transformmedia.fims.tv/transform" />
+                        <wsdl:input>
+                                <soap12:body use="literal" />
+                        </wsdl:input>
+                        <wsdl:output>
+                                <soap:body use="literal" />
+                        </wsdl:output>
+
+                        <wsdl:fault name="transformFault">
+                                <soap12:fault use="literal" name="transformFault" />
+                        </wsdl:fault>
+
+                        <wsdl:fault name="fault">
+                                <soap12:fault use="literal" name="fault" />
+                        </wsdl:fault>
+
+                        <wsdl:fault name="transformFaultBuiltIn">
+                                <soap12:fault use="literal" name="transformFaultBuiltIn" />
+                        </wsdl:fault>
+
+                        <wsdl:fault name="transformFaultMixedType">
+                                <soap12:fault use="literal" name="transformFaultMixedType" />
+                        </wsdl:fault>
+
+                </wsdl:operation>
+         </wsdl:binding>
+
          <wsdl:binding name="TransformMediaNotificationBinding" type="tfms:TransformMediaNotification">
                 <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http" />
                 <wsdl:operation name="notifyTransformResult">
@@ -181,6 +254,7 @@ specified in the notifyAt element of the job request.</wsdl:documentation>
                         </wsdl:fault>
                 </wsdl:operation>
          </wsdl:binding>
+
          <wsdl:service name="TransformMediaService">
                 <wsdl:port name="TransformMediaPort" binding="tfms:TransformMediaBinding">
                         <soap:address location="http://host/path/TransformMediaPort" />
@@ -189,6 +263,13 @@ specified in the notifyAt element of the job request.</wsdl:documentation>
                         <soap:address location="http://host/path/TransformMediaStatusPort" />
                 </wsdl:port>
          </wsdl:service>
+
+        <wsdl:service name="TransformMediaService12">
+                <wsdl:port name="TransformMediaPort12" binding="tfms:TransformMediaBinding12">
+                        <soap:address location="http://host/path/TransformMediaPort12" />
+                </wsdl:port>
+         </wsdl:service>
+
          <wsdl:service name="TransformMediaNotificationService">
                 <wsdl:port name="TransformMediaNotificationPort" binding="tfms:TransformMediaNotificationBinding">
                         <soap:address location="http://host/path/TransformMediaNotificationPort" />

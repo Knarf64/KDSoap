@@ -57,11 +57,10 @@ void Converter::convertServerService()
             Q_FOREACH( const Operation& operation, operations ) {
                 const Operation::OperationType opType = operation.operationType();
                 switch(opType) {
-                case Operation::RequestResponseOperation: // the standard case
+                case Operation::RequestResponseOperation: // the standard case, fall-through
                 case Operation::SolicitResponseOperation:
-                    if (!operation.faults().isEmpty())
-                        convertFaultException(operation);
-                case Operation::OneWayOperation:
+                    convertFaultException(operation);
+                case Operation::OneWayOperation: // fall-through
                 case Operation::NotificationOperation:
                     generateServerMethod(body, binding, operation, serverClass, first);
                     break;
@@ -181,12 +180,11 @@ void Converter::generateServerMethod(KODE::Code& code, const Binding& binding, c
             code.addBlock( serializePart( retPart, "ret", "wrapper.childValues()", true ) );
             code += "response = wrapper;";
         }
-        if(!mFaultExceptionClasses.isEmpty()) {
+        if (!mFaultExceptionClasses.isEmpty()) {
             code.unindent();
             code += "}";
         }
-        generateCatchFaultException(code, mFaultExceptionClasses);
-        mFaultExceptionClasses.clear();
+        generateCatchFaultException(code, mFaultExceptionClasses, binding.version());
 
         Q_ASSERT(!retType.isEmpty());
         virtualMethod.setReturnType(retType);
@@ -199,25 +197,19 @@ void Converter::generateServerMethod(KODE::Code& code, const Binding& binding, c
     newClass.addFunction(virtualMethod);
 }
 
-void Converter::generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, bool soap1, bool soap2) const
+void Converter::generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, Binding::Version version) const
 {
     // TODO : Make the catch in the right order : form the most derivate to the base classe
-    Q_ASSERT(soap1 || soap2);
+    QString ver = (version == Binding::SOAP_1_1) ? "SOAP1_1" : "SOAP1_2";
     Q_FOREACH(const QString& faultExceptionName, faultExceptionNames) {
-        code += "catch (const " + faultExceptionName + " &ex) {";
+        code += "catch (const " + faultExceptionName + " &ex) { // set fault according to " + ver;
         code.indent();
-        if (soap1) {
-            code += "if (soapVersion() == SOAP1_1)";
-            code.indent();
-            code += "setFault(ex.faultCode(), ex.faultString(), ex.faultActor(), ex.serialize(" + faultExceptionName + "::faultElementName()));";
-            code.unindent();
+        if (version == Binding::SOAP_1_1) {
+            code += "setFault(ex.faultCode(), ex.faultString(), ex.faultActor(), ex.serialize(QString::fromLatin1(\"detail\")));";
         }
-        if (soap2) {
-            code += (soap1) ? "else" : "if (soapVersion() == SOAP1_2)";
-            code.indent();
-            code += "setFault( KDSoapFaultException::faultCodeEnumToString(ex.code()), ex.reason(), ex.subcodes(), ex.node(), ex.role(), ex.serialize(" + faultExceptionName + "::faultElementName()));";
+        if (version == Binding::SOAP_1_2) {
+            code += "setFault( KDSoapFaultException::faultCodeEnumToString(ex.code()), ex.reason(), ex.subcodes(), ex.node(), ex.role(), ex.serialize(QString::fromLatin1(\"Detail\")));";
         }
-        code.unindent();
         code.unindent();
         code += "}";
     }

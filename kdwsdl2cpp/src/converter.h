@@ -68,6 +68,8 @@ class Converter
     void convertClientInputMessage( const Operation&, const Binding&, KODE::Class& );
     void convertClientOutputMessage( const Operation&, const Binding&, KODE::Class& );
     void convertFaultException(const Operation& operation);
+    void generateFaultCtorsDtors(KODE::Class &exceptionClass);
+    void generateFaultSerialization(KODE::Class &exceptionClass, const Fault& fault, const QList<Part> &part);
     void clientAddOneArgument( KODE::Function& callFunc, const Part& part, KODE::Class &newClass );
     void clientAddArguments( KODE::Function& callFunc, const Message& message, KODE::Class &newClass, const Operation &operation, const Binding &binding );
     bool clientAddAction( KODE::Code& code, const Binding &binding, const QString& operationName );
@@ -85,13 +87,14 @@ class Converter
     KODE::Code deserializeRetVal(const KWSDL::Part& part, const QString& replyMsgName, const QString& qtRetType, const QString& varName) const;
     QName elementNameForPart(const Part& part, bool* qualified, bool *nillable) const;
     bool isQualifiedPart(const Part& part) const;
-    void addFaultExceptionThrower(const QStringList &faultExceptionClasses);
+    void addFaultExceptionThrower();
+    void sortFaultExceptions(const QString& exception, QStringList &newPartsType );
 
     // Server Stub
     void convertServerService();
     void generateServerMethod(KODE::Code& code, const Binding& binding, const Operation& operation,
                               KODE::Class &newClass, bool first);
-    void generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, bool soap1 = true, bool soap2 = true) const;
+    void generateCatchFaultException(KODE::Code& code, const QStringList& faultExceptionNames, Binding::Version version = Binding::SOAP_1_1) const;
     void generateDelayedReponseMethod(const QString& methodName, const QString& retInputType,
                                       const Part &retPart, KODE::Class &newClass, const Binding& binding, const Message &outputMessage);
 
@@ -104,6 +107,8 @@ class Converter
     KODE::Class mQObject;
     KODE::Class mKDSoapServerObjectInterface;
     QStringList mFaultExceptionClasses;
+    QStringList mFaultExceptionsSorted;
+    QHash<QString,QStringList> mFaultExceptionsParts;
 
     NameMapper mNameMapper;
     TypeMap mTypeMap;

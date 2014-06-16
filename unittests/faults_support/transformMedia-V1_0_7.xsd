@@ -291,6 +291,9 @@
 			<documentation source="urn:x-fims:contentOfServiceDescription">-</documentation>
 		</annotation>
 	</element>
+
+        <xs:element name="simpleTypeElement" type="xsd:string"/> <!--Add custom type to fully test the fault support-->
+
 	<element name="transformNotification" type="tfms:TransformNotificationType">
 		<annotation>
 			<documentation source="urn:x-fims:description">A job

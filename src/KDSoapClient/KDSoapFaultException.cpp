@@ -187,7 +187,7 @@ const KDSoapValue &KDSoapFaultException::faultDetails(const KDSoapValue &faultVa
     for (int argNr = 0; argNr < args.count(); ++argNr) {
         const KDSoapValue& val = args.at(argNr);
         const QString name = val.name();
-        if (name == QLatin1String("detail")) {
+        if (name == QLatin1String("detail") || name == QLatin1String("Detail")) { // soap 1.1 and 1.2
             return val;
         }
     }
