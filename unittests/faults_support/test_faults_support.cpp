@@ -219,7 +219,7 @@ signals:
 private Q_SLOTS:
     void initTestCase()
     {
-        KDSoapUnitTestHelpers::initHashSeed();
+        //KDSoapUnitTestHelpers::initHashSeed();
     }
 
     void syncFault_data() {

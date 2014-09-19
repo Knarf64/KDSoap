@@ -79,6 +79,11 @@ void Converter::addFaultExceptionThrower()
         code += "QList< QPair<QString,QString> > detailEntries;";
         code += "Q_FOREACH(const KDSoapValue& detailEntry, detail.childValues()) {";
         code.indent();
+
+        code += "qDebug() << \"DetailEntryGuts : \" <<  detailEntry.toXml() ; "; // TODO remove !
+
+        code += "qDebug() << detailEntry.name() << \" ==  \" << detailEntry.namespaceUri() ; "; // TODO remove !
+
         code += "entryQName.first = detailEntry.name();";
         code += "entryQName.second = detailEntry.namespaceUri();";
         code += "detailEntries.append(entryQName);";
@@ -90,7 +95,7 @@ void Converter::addFaultExceptionThrower()
             code.indent();
             code += specificFaultExceptionClass + " specificFault;";
             code += "specificFault.deserialize(val);";
-            //code += "qDebug() << \"client recognized an exception:\"\" " + specificFaultExceptionClass + "\";";
+            code += "qDebug() << \"client recognized an exception:\"\" " + specificFaultExceptionClass + "\";";
             code += "throw specificFault;";
             code.unindent();
             code += "}"; // end of one specific fault throwing
@@ -670,11 +675,16 @@ bool Converter::convertClientCall( const Operation &operation, const Binding &bi
       }
       callFunc.setReturnType( retType );
 
-      code += "if (d_ptr->m_lastReply.isFault())";
+      code += "if (d_ptr->m_lastReply.isFault())" + COMMENT;
       code.indent();
       //code += QLatin1String("return ") + retType + QLatin1String("();"); // default-constructed value
+      code += "{";
+
+      code += " qDebug() << \" Client Reception:  \"  << d_ptr->m_lastReply.toXml() ;";
       code += QLatin1String(s_exceptionThrowerMethod) + QLatin1String("( d_ptr->m_lastReply );");
+
       code.unindent();
+      code += "}";
 
       // WARNING: if you change the logic below, also adapt the result parsing for async calls
 
@@ -1007,7 +1017,9 @@ void Converter::generateFaultSerialization(KODE::Class& exceptionClass, const Fa
             deserializeBody += "}";
         }
 
-        // exception identification function
+        // exception recognition function, each part of the fault exception have to be
+        // recognized in order to be thown, if only partial recognition it could be a similar
+        // exception that shares xsd element type within its parts.
         {
             if (detailEntriesBody.isEmpty()) {
                 detailEntriesBody += "bool match = true;";
@@ -1021,6 +1033,9 @@ void Converter::generateFaultSerialization(KODE::Class& exceptionClass, const Fa
 
             detailEntriesBody += QString("matchTab[%3] = matchTab[%3] || ( entryElement.first == \"%1\"  && entryElement.second == \"%2\" );")
                       .arg(partElementTypeName.localName()).arg(partElementTypeName.nameSpace()).arg(indexLoop);
+
+            if(indexLoop==0)
+                detailEntriesBody += " qDebug() << \" name :  \"  << entryElement.first << \"  ,ns : \" << entryElement.second  ; ";
         }
         indexLoop ++;
     }   //end of foreach
@@ -1043,6 +1058,7 @@ void Converter::generateFaultSerialization(KODE::Class& exceptionClass, const Fa
         detailEntriesBody.indent();
         detailEntriesBody += QString("match = match && matchOnce;");
         detailEntriesBody.unindent();
+        //detailEntriesBody += QString("qDebug() << \" recognition    \" <<  match ;" ); // useful debug !
         detailEntriesBody += "return match;";
     }
     sortFaultExceptions( exceptionClass.name(), newPartsType );

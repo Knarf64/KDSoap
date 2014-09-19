@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <KDSoapValue.h>
+#include <QDebug>
 
 /**
  * KDSoapFaultException is the base class for exceptions representing a fault element.

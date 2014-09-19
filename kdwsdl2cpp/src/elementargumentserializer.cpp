@@ -1,6 +1,7 @@
 #include "elementargumentserializer.h"
 #include "converter.h" // upperlize(), COMMENT
 
+#include "QDebug"
 using namespace KWSDL;
 
 ElementArgumentSerializer::ElementArgumentSerializer( const TypeMap &typeMap, const QName &type, const QName &elementType, const QString &localVarName )
@@ -94,6 +95,20 @@ KODE::Code ElementArgumentSerializer::generate() const
         const QString qtTypeName = mTypeMap.localType( mType, mElementType );
         const QString value = mTypeMap.serializeBuiltin( mType, mElementType, mLocalVarName, qtTypeName );
 
+        if (mValueVarName == "_valueText" || mValueVarName ==  "_valueSimpleTypeElement" ){
+            qDebug()<< "Elt Arg Serializer for " << mValueVarName << "namespace" << typeArgs <<  "elementType" << mElementType.localName() << "with this ns " << mElementType.nameSpace() << "mType= " << mType << "\n";
+            qDebug()<< "Elementname in EltArgSlzer :" << mNameArg << " - " << mNameNamespace << " - " << mValueVarName;
+
+
+            // USE ELEMENT NAME STUFF IF NOT EMPTY !!!!!
+
+
+
+        }
+        //if (!mNameNamespace.isEmpty()) {
+            //const QString typeArgsV2 = mNameNamespace + QLatin1String(", QString::fromLatin1(\"") + actualType.localName() + QLatin1String("\")");
+            //block += QLatin1String("KDSoapValue ") + mValueVarName + QLatin1String("(" )+ mNameArg + QLatin1String(", ") + value + QLatin1String(", ") + typeArgsV2 + QLatin1String(");") + COMMENT;
+       // } else
         block += QLatin1String("KDSoapValue ") + mValueVarName + QLatin1String("(" )+ mNameArg + QLatin1String(", ") + value + QLatin1String(", ") + typeArgs + QLatin1String(");") + COMMENT;
       } else {
         block += QLatin1String("KDSoapValue ") + mValueVarName + QLatin1String("(") + mNameArg + QLatin1String(", ") + mLocalVarName + QLatin1String(".serialize(), ") + typeArgs + QLatin1String(");") + COMMENT;

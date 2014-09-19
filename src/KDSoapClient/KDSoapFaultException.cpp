@@ -183,11 +183,17 @@ QString KDSoapFaultException::faultCode() const
 
 const KDSoapValue &KDSoapFaultException::faultDetails(const KDSoapValue &faultValue)
 {   // Find and return the <detail> element under faultElement
+    qDebug() << "KDSoapFaultException faultValue = " << faultValue.namespaceUri();
+
     const KDSoapValueList& args = faultValue.childValues();
     for (int argNr = 0; argNr < args.count(); ++argNr) {
         const KDSoapValue& val = args.at(argNr);
         const QString name = val.name();
         if (name == QLatin1String("detail") || name == QLatin1String("Detail")) { // soap 1.1 and 1.2
+            //if (val.namespaceUri().isEmpty())
+                //val.setNamespaceUri(faultValue.namespaceUri());
+            qDebug() << "KDSoapFaultException detail= " << val.namespaceUri();
+            qDebug() << "KDSoapFaultException detail XML = " << val.toXml();
             return val;
         }
     }

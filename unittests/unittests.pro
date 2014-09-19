@@ -25,7 +25,8 @@ SUBDIRS = \
   literal_true_false \
   import_definition \
   unqualified_formdefault \
-  faults_support
+  faults_support \
+  #faults_gridlab
 
 # These need internet access
 SUBDIRS += webcalls webcalls_wsdl

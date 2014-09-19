@@ -34,7 +34,6 @@ Creator::Creator()
 
 void Creator::create( const KODE::Class::List &classes, const KODE::Function::List fileFunctions)
 {
-  Q_UNUSED( fileFunctions);
   KODE::Printer printer;
   printer.setOutputDirectory( Settings::self()->outputDirectory() );
 

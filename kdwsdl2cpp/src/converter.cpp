@@ -389,6 +389,9 @@ KODE::Code Converter::serializePart(const Part &part, const QString &localVariab
 {
     bool qualified, nillable;
     const QName elemName = elementNameForPart( part, &qualified, &nillable );
+
+    if (elemName.localName() == "MyFirstException") qDebug() << "SerializerPart generating Elt Args Serializer found firstException : "<< elemName.localName() << "=>" << elemName.nameSpace() ;
+
     ElementArgumentSerializer serializer( mTypeMap, part.type(), part.element(), localVariableName );
     serializer.setElementName( elemName );
     serializer.setOutputVariable( varName, append );
