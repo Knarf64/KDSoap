@@ -27,6 +27,8 @@
 #include <QDebug>
 #include <QObject>
 
+#include "KDSoapClient/KDSoapMessageWriter_p.h"
+#include "KDSoapClient/KDSoapMessageAddressingProperties.h"
 #include "wsdl_wsaddressing.h"
 
 class WSAddressingTest : public QObject
@@ -38,6 +40,38 @@ public:
     virtual ~WSAddressingTest() {}
 
 private Q_SLOTS:
+    void shouldWritteAProperSoapMessageWithRightsAddressingProperties()
+    {
+        // GIVEN
+        KDSoapMessage message;
+        KDSoapMessageWriter writter;
+        KDSoapMessageAddressingProperties map;
+
+        QString none = map.predefinedAddressToString(KDSoapMessageAddressingProperties::None);
+        QCOMPARE(none, QString("http://www.w3.org/2005/08/addressing/anonymous"));
+
+        QString anonymous = map.predefinedAddressToString(KDSoapMessageAddressingProperties::Anonymous);
+        QCOMPARE(anonymous, QString("http://www.w3.org/2005/08/addressing/none"));
+
+        // with some message addressing properties
+        map.setAction("sayHello");
+        map.setDestination("http://www.ecerami.com/wsdl/HelloService");
+        map.setFaultEndpoint("http://www.ecerami.com/wsdl/HelloService");
+        map.setMessageID("uuid:e197db59-0982-4c9c-9702-4234d204f7f4");
+        map.setReplyEndpoint(""); // means SOAP message reply will be anonymous addressing
+        map.setReferenceParameters(KDSoapValue("ReferenceParameters", QVariant("test")));
+        //map.setRelationship();
+        //map.setSourceEndpoint();
+
+        message.setMessageAddressingProperties(map);
+
+        // WHEN
+        QByteArray messageToPrint = writter.messageToXml(message, "sayHello", KDSoapHeaders(), QMap<QString, KDSoapMessage>() );
+//        qDebug() << messageToPrint.data();
+
+        // THEN
+        QCOMPARE(messageToPrint.data(), expectedSoapMessage().data());
+    }
     void shouldRecognizeWSAddressingFeatureFromWSDL()
     {
 
@@ -60,6 +94,23 @@ private Q_SLOTS:
 
         // NEED TO add implicit / explicit recognition
     }
+private:
+        static QByteArray expectedSoapMessage() {
+            return QByteArray(KDSoapUnitTestHelpers::xmlEnvBegin11()) + " xmlns:wsa=\"http://www.w3.org/2005/08/addressing\">"
+                    "<soap:Header>"
+                        "<wsa:MessageID>uuid:e197db59-0982-4c9c-9702-4234d204f7f4</wsa:MessageID>"
+                        "<wsa:ReplyTo>"
+                            "<wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address>"
+                        "</wsa:ReplyTo>"
+                      "<wsa:To>http://www.ecerami.com/wsdl/HelloService</wsa:To>"
+                      "<wsa:Action>sayHello</wsa:Action>"
+                      "<wsa:FaultTo>http://www.ecerami.com/wsdl/HelloService</wsa:FaultTo>"
+                    "</S:Header>"
+                    "<soap:Body>"
+                      "<queryResponse>" // TODO
+                      "</queryResponse>"
+                    "</soap:Body>" + KDSoapUnitTestHelpers::xmlEnvEnd();
+        }
 };
 
 QTEST_MAIN(WSAddressingTest)
