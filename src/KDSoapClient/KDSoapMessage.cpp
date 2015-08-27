@@ -21,6 +21,7 @@
 **
 **********************************************************************/
 #include "KDSoapMessage.h"
+#include "KDSoapMessageAddressingProperties.h"
 #include "KDSoapNamespaceManager.h"
 #include "KDSoapNamespacePrefixes_p.h"
 #include "KDDateTime.h"
@@ -37,6 +38,7 @@ public:
 
     KDSoapMessage::Use use;
     bool isFault;
+    KDSoapMessageAddressingProperties messageAddressingProperties;
 };
 
 KDSoapMessage::KDSoapMessage()
@@ -131,6 +133,16 @@ QString KDSoapMessage::faultAsString() const
 void KDSoapMessage::setFault(bool fault)
 {
     d->isFault = fault;
+}
+
+const KDSoapMessageAddressingProperties &KDSoapMessage::messageAddressingProperties()
+{
+    d->messageAddressingProperties;
+}
+
+void KDSoapMessage::setMessageAddressingProperties(const KDSoapMessageAddressingProperties &map)
+{
+    d->messageAddressingProperties = map;
 }
 
 KDSoapMessage::Use KDSoapMessage::use() const

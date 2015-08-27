@@ -30,6 +30,7 @@ QT_BEGIN_NAMESPACE
 class QString;
 QT_END_NAMESPACE
 class KDSoapMessageData;
+class KDSoapMessageAddressingProperties;
 class KDSoapHeaders;
 
 /**
@@ -148,6 +149,9 @@ public:
      */
     void setFault(bool fault);
 
+    void setMessageAddressingProperties(const KDSoapMessageAddressingProperties &map);
+
+    const KDSoapMessageAddressingProperties &messageAddressingProperties();
 private:
     bool isNull() const;
     friend class KDSoapPendingCall;
