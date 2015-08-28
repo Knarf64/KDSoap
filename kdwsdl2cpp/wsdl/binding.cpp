@@ -33,12 +33,12 @@ static QString soap12StandardNamespace = QLatin1String("http://schemas.xmlsoap.o
 static QString httpStandardNamespace = QLatin1String("http://schemas.xmlsoap.org/wsdl/http/");
 
 Binding::Binding()
-  : mType( UnknownBinding ), mVersion( SOAP_1_1 )
+  : mType( UnknownBinding ), mVersion( SOAP_1_1 ), mWSAddressing(false)
 {
 }
 
 Binding::Binding( const QString &nameSpace )
-  : Element( nameSpace ), mType( UnknownBinding ), mVersion( SOAP_1_1 )
+  : Element( nameSpace ), mType( UnknownBinding ), mVersion( SOAP_1_1 ), mWSAddressing(false)
 {
 }
 
@@ -86,6 +86,9 @@ void Binding::loadXML( ParserContext *context, const QDomElement &element )
         } else {
             qWarning() << "Not implemented: MIMEBinding";
         }
+    } else if (tagName.localName() == QLatin1String("UsingAddressing") ) {
+        mWSAddressing = true;
+        qDebug() << "This binding is using Addressing WS Specification ON ";
     }
 
     child = child.nextSiblingElement();
@@ -163,6 +166,11 @@ void Binding::setVersion(Binding::Version v)
 Binding::Version Binding::version() const
 {
     return mVersion;
+}
+
+bool Binding::isUsingAddressing() const
+{
+    return mWSAddressing;
 }
 
 #if 0

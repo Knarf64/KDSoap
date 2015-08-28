@@ -212,7 +212,17 @@ void SoapBinding::Operation::addInputHeader( const Header &inputHeader )
 
 SoapBinding::Headers SoapBinding::Operation::inputHeaders() const
 {
-  return mInputHeaders;
+    return mInputHeaders;
+}
+
+void SoapBinding::Operation::setInputEndpoint(const QString &endpoint)
+{
+    mInputEndpoint = endpoint;
+}
+
+QString SoapBinding::Operation::inputEndpoint() const
+{
+    return mInputEndpoint;
 }
 
 void SoapBinding::Operation::addOutputHeader( const Header &outputHeader )
@@ -776,6 +786,12 @@ void SoapBinding::parseOperation( ParserContext *context, const QString &name, c
 // Parse <operation><input>
 void SoapBinding::parseOperationInput( ParserContext *context, const QString &name, const QDomElement &parent )
 {
+    if (parent.hasAttribute(QLatin1String("wsaw:Action")) ) {
+        Operation &op = mOperations[ name ];
+        op.setInputEndpoint(parent.attribute("wsaw:Action"));
+        qDebug() << "adding to the input endpoint : "<< parent.attribute("wsaw:Action");
+    }
+
     QDomElement child = parent.firstChildElement();
     while ( !child.isNull() ) {
         NSManager namespaceManager( context, child );
@@ -846,6 +862,11 @@ void SoapBinding::parsePort( ParserContext *context, const QDomElement &parent )
         if ( NSManager::soapNamespaces().contains( namespaceManager.nameSpace(child) ) ) {
             if ( namespaceManager.localName(child) == QLatin1String("address") ) {
                 mAddress.loadXML( context, child );
+            }
+        } else if ( NSManager::wsAddressingNamespace().contains( namespaceManager.nameSpace(child) ) ) {
+            if ( namespaceManager.localName(child) == QLatin1String("EndpointReference") ) {
+                mEndpointReference = EndpointReference( namespaceManager.nameSpace( child ) );
+                mEndpointReference.loadXML(context, child);
             }
         }
 

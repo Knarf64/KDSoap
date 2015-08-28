@@ -28,6 +28,7 @@
 
 #include <common/qname.h>
 #include <wsdl/abstractbinding.h>
+#include <wsdl/endpointreference.h>
 
 #include <kode_export.h>
 
@@ -254,6 +255,9 @@ class KWSDL_EXPORT SoapBinding : public AbstractBinding
         void addInputHeader( const Header &inputHeader );
         Headers inputHeaders() const;
 
+        void setInputEndpoint( const QString &endpoint );
+        QString inputEndpoint() const;
+
         void addOutputHeader( const Header &outputHeader );
         Headers outputHeaders() const;
 
@@ -265,6 +269,7 @@ class KWSDL_EXPORT SoapBinding : public AbstractBinding
         QString mSoapAction;
         Style mStyle;
         Body mInputBody;
+        QString mInputEndpoint;
         Headers mInputHeaders;
         Body mOutputBody;
         Headers mOutputHeaders;
@@ -317,6 +322,7 @@ class KWSDL_EXPORT SoapBinding : public AbstractBinding
     Binding mBinding;
     Operation::Map mOperations;
     Address mAddress;
+    EndpointReference mEndpointReference;
 };
 
 }

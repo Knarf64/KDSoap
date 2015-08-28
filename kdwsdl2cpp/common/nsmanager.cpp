@@ -147,6 +147,12 @@ QString NSManager::xmlNamespace()
     return QLatin1String("http://www.w3.org/XML/1998/namespace");
 }
 
+QStringList NSManager::wsAddressingNamespace()
+{
+    return QStringList() << QLatin1String("http://www.w3.org/2005/08/addressing")
+                         << QLatin1String("http://www.w3.org/2006/05/addressing/wsdl");
+}
+
 void NSManager::reset()
 {
   mMap.clear();

@@ -3,6 +3,7 @@ TARGET = wsdl
 CONFIG += staticlib
 
 SOURCES = \
+   endpointreference.cpp \
    binding.cpp \
    bindingoperation.cpp \
    definitions.cpp \

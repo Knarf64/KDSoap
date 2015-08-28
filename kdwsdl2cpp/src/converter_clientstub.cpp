@@ -224,6 +224,9 @@ bool Converter::convertClientService()
                     code += "d_ptr->m_clientInterface->setSoapVersion( KDSoapClientInterface::SOAP1_2 );";
                 else
                     code += "d_ptr->m_clientInterface->setSoapVersion( KDSoapClientInterface::SOAP1_1 );";
+
+                if (binding.isUsingAddressing())
+                    code += "d_ptr->m_clientInterface->enableWSAddressingSupport();";
                 code.unindent();
                 code += "}";
                 code += "return d_ptr->m_clientInterface;";

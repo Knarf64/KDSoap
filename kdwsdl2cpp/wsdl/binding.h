@@ -28,6 +28,7 @@
 #include <common/qname.h>
 #include <wsdl/bindingoperation.h>
 #include <wsdl/element.h>
+#include <wsdl/endpointreference.h>
 #include <wsdl/soapbinding.h>
 
 #include <kode_export.h>
@@ -70,6 +71,8 @@ class KWSDL_EXPORT Binding : public Element
     void setVersion(Version v);
     Version version() const;
 
+    bool isUsingAddressing() const;
+
     void setOperations( const BindingOperation::List &operations );
     BindingOperation::List operations() const;
 
@@ -89,6 +92,9 @@ class KWSDL_EXPORT Binding : public Element
     Type mType;
     SoapBinding mSoapBinding;
     Version mVersion;
+
+    EndpointReference::List mEndpointsReferences;
+    bool mWSAddressing;
 };
 
 }
